@@ -1,0 +1,14 @@
+# Ignore ALL datasets
+data/
+data/**
+
+# Ignore CSV files everywhere
+*.csv
+
+# Models
+*.h5
+*.keras
+
+# Python
+__pycache__/
+.ipynb_checkpoints/
