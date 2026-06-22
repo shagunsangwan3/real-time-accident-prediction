@@ -1,310 +1,224 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>🌍 Real-Time Accident Risk Globe</title>
-
-  <!-- Three.js r155 + OrbitControls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
   <style>
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+    html,body{width:100%;height:100%;background:#000408;color:#e0f0ff;
+      font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;}
+    #globe-canvas{position:fixed;inset:0;display:block;width:100%!important;height:100%!important;}
 
-    html, body {
-      width: 100%; height: 100%;
-      background: #000408;
-      color: #e0f0ff;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      overflow: hidden;
-    }
+    /* ── HUD ── */
+    #hud{position:fixed;inset:0;pointer-events:none;z-index:20;}
 
-    #globe-canvas {
-      position: fixed;
-      inset: 0;
-      display: block;
-      width: 100% !important;
-      height: 100% !important;
-    }
+    /* Title */
+    #title-bar{position:absolute;top:0;left:0;right:0;padding:14px 24px;
+      display:flex;align-items:center;gap:12px;
+      background:linear-gradient(to bottom,rgba(0,4,10,.93) 60%,transparent);
+      pointer-events:auto;}
+    #title-bar h1{font-size:1.2rem;font-weight:700;letter-spacing:.05em;
+      color:#a8d8f4;text-shadow:0 0 22px rgba(80,180,255,.7);}
+    .pulse-dot{width:9px;height:9px;border-radius:50%;background:#22ff88;
+      box-shadow:0 0 10px #22ff88,0 0 22px #22ff88;flex-shrink:0;
+      animation:pulse 1.5s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}
 
-    /* ── HUD ─────────────────────────────── */
-    #hud {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 20;
-    }
-
-    /* Title bar */
-    #title-bar {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      padding: 16px 28px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: linear-gradient(to bottom, rgba(0,4,10,.92) 60%, transparent);
-      pointer-events: auto;
-    }
-    #title-bar h1 {
-      font-size: 1.25rem;
-      font-weight: 700;
-      letter-spacing: .05em;
-      color: #a8d8f4;
-      text-shadow: 0 0 24px rgba(80,180,255,.7);
-    }
-    .pulse-dot {
-      width: 9px; height: 9px;
-      border-radius: 50%;
-      background: #22ff88;
-      box-shadow: 0 0 10px #22ff88, 0 0 22px #22ff88;
-      animation: pulse 1.5s ease-in-out infinite;
-      flex-shrink: 0;
-    }
-    @keyframes pulse {
-      0%,100%{ opacity:1; transform:scale(1); }
-      50%    { opacity:.35; transform:scale(.65); }
-    }
+    #country-breadcrumb{margin-left:auto;display:flex;align-items:center;gap:10px;
+      font-size:.8rem;color:#7ab8d8;}
+    #country-breadcrumb span{color:#a8d8f4;font-weight:600;}
+    #btn-back{background:rgba(80,180,255,.13);border:1px solid rgba(80,180,255,.35);
+      color:#7ab8d8;border-radius:8px;padding:5px 13px;font-size:.75rem;
+      cursor:pointer;pointer-events:auto;letter-spacing:.05em;transition:all .2s;}
+    #btn-back:hover{background:rgba(80,180,255,.25);color:#c8e8ff;}
+    #btn-back.hidden{display:none;}
 
     /* Controls hint */
-    #controls-hint {
-      position: absolute;
-      top: 72px; right: 28px;
-      font-size: .7rem;
-      color: rgba(100,165,210,.5);
-      text-align: right;
-      line-height: 1.9;
-    }
-    #controls-hint strong { color: rgba(120,185,230,.8); }
+    #controls-hint{position:absolute;top:68px;right:24px;font-size:.68rem;
+      color:rgba(100,165,210,.48);text-align:right;line-height:2;}
+    #controls-hint strong{color:rgba(120,185,230,.78);}
 
-    /* Legend */
-    #legend {
-      position: absolute;
-      bottom: 52px; left: 28px;
-      background: rgba(0,8,20,.80);
-      border: 1px solid rgba(80,180,255,.22);
-      border-radius: 14px;
-      padding: 14px 20px;
-      backdrop-filter: blur(14px);
-      pointer-events: auto;
-      min-width: 170px;
-    }
-    #legend h3 {
-      font-size: .68rem;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-      color: #5ab4e0;
-      margin-bottom: 11px;
-    }
-    .legend-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-    .legend-row:last-child { margin-bottom: 0; }
-    .legend-dot {
-      width: 12px; height: 12px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .ld-low  { background:#22ff88; box-shadow:0 0 7px #22ff88, 0 0 14px rgba(34,255,136,.4); }
-    .ld-med  { background:#ffaa00; box-shadow:0 0 7px #ffaa00, 0 0 14px rgba(255,170,0,.4); }
-    .ld-high { background:#ff3366; box-shadow:0 0 7px #ff3366, 0 0 14px rgba(255,51,102,.4); }
-    .legend-row span { font-size: .8rem; color: #aac8e0; }
-    .legend-count { margin-left:auto; font-size:.75rem; font-weight:700; font-variant-numeric:tabular-nums; }
+    /* ── COUNTRY PANEL ── */
+    #country-panel{position:absolute;top:62px;left:24px;
+      background:rgba(0,8,22,.88);border:1px solid rgba(80,180,255,.2);
+      border-radius:14px;backdrop-filter:blur(16px);
+      width:230px;pointer-events:auto;overflow:hidden;
+      box-shadow:0 8px 32px rgba(0,0,0,.5);}
+    #cp-header{padding:12px 16px 8px;border-bottom:1px solid rgba(80,180,255,.12);}
+    #cp-header h3{font-size:.68rem;letter-spacing:.13em;text-transform:uppercase;
+      color:#5ab4e0;margin-bottom:8px;}
+    #country-search{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(80,180,255,.2);
+      border-radius:8px;padding:7px 11px;color:#c8e8ff;font-size:.78rem;outline:none;}
+    #country-search::placeholder{color:rgba(100,165,210,.45);}
+    #country-search:focus{border-color:rgba(80,180,255,.5);background:rgba(255,255,255,.08);}
+    #country-list{max-height:320px;overflow-y:auto;padding:4px 0;}
+    #country-list::-webkit-scrollbar{width:4px;}
+    #country-list::-webkit-scrollbar-track{background:transparent;}
+    #country-list::-webkit-scrollbar-thumb{background:rgba(80,180,255,.25);border-radius:2px;}
+    .c-item{display:flex;align-items:center;gap:10px;padding:8px 16px;
+      cursor:pointer;font-size:.8rem;color:#aac8e0;transition:all .15s;
+      border-left:2px solid transparent;}
+    .c-item:hover{background:rgba(80,180,255,.1);color:#c8e8ff;
+      border-left-color:rgba(80,180,255,.4);}
+    .c-item.active{background:rgba(80,180,255,.15);color:#e8f4ff;
+      border-left-color:#5ab4e0;}
+    .c-flag{font-size:1.05rem;line-height:1;}
+    .c-name{flex:1;}
+    .c-risk-badge{font-size:.65rem;font-weight:700;padding:2px 7px;
+      border-radius:10px;letter-spacing:.04em;}
+    .crb-high{background:rgba(255,51,102,.18);color:#ff3366;border:1px solid rgba(255,51,102,.3);}
+    .crb-med {background:rgba(255,170,0,.18);color:#ffaa00;border:1px solid rgba(255,170,0,.3);}
+    .crb-low {background:rgba(34,255,136,.15);color:#22ff88;border:1px solid rgba(34,255,136,.25);}
 
-    /* Stats */
-    #stats {
-      position: absolute;
-      bottom: 52px; right: 28px;
-      background: rgba(0,8,20,.80);
-      border: 1px solid rgba(80,180,255,.22);
-      border-radius: 14px;
-      padding: 14px 20px;
-      backdrop-filter: blur(14px);
-      min-width: 210px;
-      pointer-events: auto;
-    }
-    #stats h3 {
-      font-size: .68rem;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-      color: #5ab4e0;
-      margin-bottom: 11px;
-    }
-    .stat-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 7px;
-      font-size: .8rem;
-    }
-    .stat-row:last-child { margin-bottom: 0; }
-    .stat-label { color: #6a9cb8; }
-    .stat-val { color: #c8e8ff; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .sv-live { color: #22ff88; }
-    .sv-high { color: #ff3366; }
-    .sv-med  { color: #ffaa00; }
-    .sv-low  { color: #22ff88; }
+    /* ── Legend ── */
+    #legend{position:absolute;bottom:50px;left:24px;
+      background:rgba(0,8,20,.82);border:1px solid rgba(80,180,255,.2);
+      border-radius:14px;padding:13px 18px;backdrop-filter:blur(14px);
+      pointer-events:auto;min-width:165px;}
+    #legend h3{font-size:.67rem;letter-spacing:.14em;text-transform:uppercase;
+      color:#5ab4e0;margin-bottom:10px;}
+    .legend-row{display:flex;align-items:center;gap:9px;margin-bottom:7px;}
+    .legend-row:last-child{margin-bottom:0;}
+    .legend-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+    .ld-low{background:#22ff88;box-shadow:0 0 7px #22ff88,0 0 14px rgba(34,255,136,.4);}
+    .ld-med{background:#ffaa00;box-shadow:0 0 7px #ffaa00,0 0 14px rgba(255,170,0,.4);}
+    .ld-high{background:#ff3366;box-shadow:0 0 7px #ff3366,0 0 14px rgba(255,51,102,.4);}
+    .legend-row span{font-size:.78rem;color:#aac8e0;}
+    .legend-count{margin-left:auto;font-size:.73rem;font-weight:700;font-variant-numeric:tabular-nums;}
+    .sv-low{color:#22ff88;}.sv-med{color:#ffaa00;}.sv-high{color:#ff3366;}
 
-    /* Tooltip */
-    #tooltip {
-      position: absolute;
-      display: none;
-      background: rgba(0,8,24,.92);
-      border: 1px solid rgba(80,180,255,.32);
-      border-radius: 11px;
-      padding: 11px 16px;
-      font-size: .8rem;
-      pointer-events: none;
-      backdrop-filter: blur(10px);
-      z-index: 30;
-      min-width: 190px;
-    }
-    #tt-risk  { font-weight: 700; font-size: .96rem; margin-bottom: 5px; }
-    #tt-coord { color: #7ab0cc; font-size: .74rem; margin-bottom: 6px; }
-    #tt-extra { color: #aac8e0; font-size: .76rem; line-height: 1.6; }
+    /* ── Stats ── */
+    #stats{position:absolute;bottom:50px;right:24px;
+      background:rgba(0,8,20,.82);border:1px solid rgba(80,180,255,.2);
+      border-radius:14px;padding:13px 18px;backdrop-filter:blur(14px);
+      min-width:205px;pointer-events:auto;}
+    #stats h3{font-size:.67rem;letter-spacing:.14em;text-transform:uppercase;
+      color:#5ab4e0;margin-bottom:10px;}
+    .stat-row{display:flex;justify-content:space-between;align-items:center;
+      margin-bottom:7px;font-size:.79rem;}
+    .stat-row:last-child{margin-bottom:0;}
+    .stat-label{color:#6a9cb8;}
+    .stat-val{color:#c8e8ff;font-weight:600;font-variant-numeric:tabular-nums;}
+    .sv-live{color:#22ff88;}
 
-    /* Ticker */
-    #ticker {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 34px;
-      background: rgba(0,4,10,.92);
-      border-top: 1px solid rgba(80,180,255,.13);
-      display: flex;
-      align-items: center;
-      overflow: hidden;
-    }
-    #ticker-label {
-      flex-shrink: 0;
-      padding: 0 14px;
-      font-size: .68rem;
-      letter-spacing: .12em;
-      color: #5ab4e0;
-      text-transform: uppercase;
-      border-right: 1px solid rgba(80,180,255,.18);
-      height: 100%;
-      display: flex;
-      align-items: center;
-    }
-    #ticker-track { flex:1; overflow:hidden; position:relative; }
-    #ticker-inner {
-      display: flex;
-      gap: 55px;
-      white-space: nowrap;
-      font-size: .7rem;
-      color: #8ab8d0;
-      animation: ticker-scroll 32s linear infinite;
-    }
-    @keyframes ticker-scroll {
-      0%   { transform: translateX(100%); }
-      100% { transform: translateX(-200%); }
-    }
-    .t-item { display:flex; align-items:center; gap:7px; }
-    .t-dot  { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+    /* ── Country info card (appears when country selected) ── */
+    #country-card{position:absolute;top:62px;right:24px;
+      background:rgba(0,8,22,.90);border:1px solid rgba(80,180,255,.22);
+      border-radius:14px;backdrop-filter:blur(16px);padding:16px 20px;
+      min-width:230px;pointer-events:auto;display:none;}
+    #country-card h2{font-size:1.1rem;font-weight:700;color:#c8e8ff;margin-bottom:4px;}
+    #cc-subtitle{font-size:.72rem;color:#5ab4e0;letter-spacing:.08em;margin-bottom:14px;}
+    .cc-stat{display:flex;justify-content:space-between;margin-bottom:7px;font-size:.79rem;}
+    .cc-stat:last-child{margin-bottom:0;}
+    .cc-label{color:#6a9cb8;}
+    .cc-val{font-weight:600;color:#c8e8ff;}
+    #cc-bar-wrap{margin:12px 0 4px;}
+    #cc-bar-label{font-size:.67rem;color:#5ab4e0;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
+    #cc-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;}
+    .cc-seg{height:100%;border-radius:2px;transition:width .6s ease;}
 
-    /* Scanline */
-    #scanline {
-      position: fixed; inset: 0;
-      pointer-events: none;
-      z-index: 5;
-      background: repeating-linear-gradient(
-        0deg, transparent, transparent 2px,
-        rgba(0,0,0,.025) 2px, rgba(0,0,0,.025) 4px
-      );
-    }
+    /* ── Tooltip ── */
+    #tooltip{position:absolute;display:none;background:rgba(0,8,24,.93);
+      border:1px solid rgba(80,180,255,.3);border-radius:11px;padding:10px 15px;
+      font-size:.79rem;pointer-events:none;backdrop-filter:blur(10px);z-index:30;min-width:180px;}
+    #tt-risk{font-weight:700;font-size:.94rem;margin-bottom:4px;}
+    #tt-coord{color:#7ab0cc;font-size:.73rem;margin-bottom:5px;}
+    #tt-extra{color:#aac8e0;font-size:.74rem;line-height:1.6;}
 
-    /* Loading overlay */
-    #loading {
-      position: fixed; inset: 0;
-      background: #000408;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      transition: opacity .5s ease;
-    }
-    #loading.fade-out { opacity: 0; pointer-events: none; }
-    .load-ring {
-      width: 56px; height: 56px;
-      border: 3px solid rgba(80,180,255,.15);
-      border-top-color: #5ab4e0;
-      border-radius: 50%;
-      animation: spin 0.9s linear infinite;
-      margin-bottom: 20px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #loading p { color: #5ab4e0; font-size: .85rem; letter-spacing: .1em; }
+    /* ── Ticker ── */
+    #ticker{position:absolute;bottom:0;left:0;right:0;height:33px;
+      background:rgba(0,4,10,.93);border-top:1px solid rgba(80,180,255,.12);
+      display:flex;align-items:center;overflow:hidden;}
+    #ticker-label{flex-shrink:0;padding:0 13px;font-size:.67rem;letter-spacing:.12em;
+      color:#5ab4e0;text-transform:uppercase;border-right:1px solid rgba(80,180,255,.17);
+      height:100%;display:flex;align-items:center;}
+    #ticker-track{flex:1;overflow:hidden;position:relative;}
+    #ticker-inner{display:flex;gap:55px;white-space:nowrap;font-size:.69rem;
+      color:#8ab8d0;animation:ticker-scroll 32s linear infinite;}
+    @keyframes ticker-scroll{0%{transform:translateX(100%)}100%{transform:translateX(-200%)}}
+    .t-item{display:flex;align-items:center;gap:7px;}
+    .t-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+    #scanline{position:fixed;inset:0;pointer-events:none;z-index:5;
+      background:repeating-linear-gradient(0deg,transparent,transparent 2px,
+      rgba(0,0,0,.022) 2px,rgba(0,0,0,.022) 4px);}
+
+    #loading{position:fixed;inset:0;background:#000408;display:flex;
+      flex-direction:column;align-items:center;justify-content:center;
+      z-index:100;transition:opacity .5s ease;}
+    #loading.fade-out{opacity:0;pointer-events:none;}
+    .load-ring{width:52px;height:52px;border:3px solid rgba(80,180,255,.14);
+      border-top-color:#5ab4e0;border-radius:50%;
+      animation:spin .9s linear infinite;margin-bottom:18px;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #loading p{color:#5ab4e0;font-size:.82rem;letter-spacing:.1em;}
   </style>
 </head>
 <body>
-
 <canvas id="globe-canvas"></canvas>
 <div id="scanline"></div>
 
-<!-- Loading -->
-<div id="loading">
-  <div class="load-ring"></div>
-  <p>INITIALISING GLOBE…</p>
-</div>
+<div id="loading"><div class="load-ring"></div><p>INITIALISING GLOBE…</p></div>
 
-<!-- HUD -->
 <div id="hud">
   <div id="title-bar">
     <div class="pulse-dot"></div>
     <h1>Real-Time Accident Risk · Global View</h1>
+    <div id="country-breadcrumb" style="display:none">
+      <span id="cb-name"></span>
+      <button id="btn-back">← World View</button>
+    </div>
   </div>
 
   <div id="controls-hint">
-    <strong>Drag</strong> to rotate &nbsp;|&nbsp;
-    <strong>Scroll</strong> to zoom &nbsp;|&nbsp;
-    <strong>Hover</strong> to inspect
+    <strong>Drag</strong> rotate &nbsp;|&nbsp;
+    <strong>Scroll</strong> zoom &nbsp;|&nbsp;
+    <strong>Click country</strong> drill-in
+  </div>
+
+  <!-- Country selector panel -->
+  <div id="country-panel">
+    <div id="cp-header">
+      <h3>Countries</h3>
+      <input id="country-search" type="text" placeholder="Search country…"/>
+    </div>
+    <div id="country-list"></div>
+  </div>
+
+  <!-- Country detail card -->
+  <div id="country-card">
+    <h2 id="cc-name"></h2>
+    <div id="cc-subtitle">ACCIDENT RISK ANALYSIS</div>
+    <div class="cc-stat"><span class="cc-label">Total Events</span><span class="cc-val" id="cc-total">—</span></div>
+    <div class="cc-stat"><span class="cc-label">High Risk Zones</span><span class="cc-val sv-high" id="cc-high">—</span></div>
+    <div class="cc-stat"><span class="cc-label">Medium Risk Zones</span><span class="cc-val sv-med" id="cc-med">—</span></div>
+    <div class="cc-stat"><span class="cc-label">Low Risk Zones</span><span class="cc-val sv-low" id="cc-low">—</span></div>
+    <div id="cc-bar-wrap">
+      <div id="cc-bar-label">Risk Distribution</div>
+      <div id="cc-bar">
+        <div class="cc-seg" id="cc-seg-high" style="background:#ff3366;"></div>
+        <div class="cc-seg" id="cc-seg-med"  style="background:#ffaa00;"></div>
+        <div class="cc-seg" id="cc-seg-low"  style="background:#22ff88;"></div>
+      </div>
+    </div>
   </div>
 
   <div id="legend">
     <h3>Risk Level</h3>
-    <div class="legend-row">
-      <div class="legend-dot ld-low"></div>
-      <span>Low Risk</span>
-      <span class="legend-count sv-low" id="lc-low">—</span>
-    </div>
-    <div class="legend-row">
-      <div class="legend-dot ld-med"></div>
-      <span>Medium Risk</span>
-      <span class="legend-count sv-med" id="lc-med">—</span>
-    </div>
-    <div class="legend-row">
-      <div class="legend-dot ld-high"></div>
-      <span>High Risk</span>
-      <span class="legend-count sv-high" id="lc-high">—</span>
-    </div>
+    <div class="legend-row"><div class="legend-dot ld-low"></div><span>Low</span><span class="legend-count sv-low" id="lc-low">—</span></div>
+    <div class="legend-row"><div class="legend-dot ld-med"></div><span>Medium</span><span class="legend-count sv-med" id="lc-med">—</span></div>
+    <div class="legend-row"><div class="legend-dot ld-high"></div><span>High</span><span class="legend-count sv-high" id="lc-high">—</span></div>
   </div>
 
   <div id="stats">
     <h3>Live Statistics</h3>
-    <div class="stat-row">
-      <span class="stat-label">Active Events</span>
-      <span class="stat-val sv-live" id="s-active">—</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">High Risk</span>
-      <span class="stat-val sv-high" id="s-high">—</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Medium Risk</span>
-      <span class="stat-val sv-med" id="s-med">—</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Low Risk</span>
-      <span class="stat-val sv-low" id="s-low">—</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Data Rate</span>
-      <span class="stat-val" id="s-rate">—</span>
-    </div>
+    <div class="stat-row"><span class="stat-label">Active Events</span><span class="stat-val sv-live" id="s-active">—</span></div>
+    <div class="stat-row"><span class="stat-label">High Risk</span><span class="stat-val sv-high" id="s-high">—</span></div>
+    <div class="stat-row"><span class="stat-label">Medium Risk</span><span class="stat-val sv-med" id="s-med">—</span></div>
+    <div class="stat-row"><span class="stat-label">Low Risk</span><span class="stat-val sv-low" id="s-low">—</span></div>
+    <div class="stat-row"><span class="stat-label">Data Rate</span><span class="stat-val" id="s-rate">—</span></div>
   </div>
 
   <div id="tooltip">
@@ -315,611 +229,813 @@
 
   <div id="ticker">
     <div id="ticker-label">Live Feed</div>
-    <div id="ticker-track">
-      <div id="ticker-inner">Loading…</div>
-    </div>
+    <div id="ticker-track"><div id="ticker-inner">Loading…</div></div>
   </div>
 </div>
 
 <script>
 /* ════════════════════════════════════════════════════════
-   THREE.JS 3D GLOBE — Real-Time Accident Risk
-   WebGL sphere + PBR-style shading + glowing risk markers
+   THREE.JS 3D GLOBE — Country-drill Real-Time Risk Map
    ════════════════════════════════════════════════════════ */
 
-/* ── Config from Streamlit (injected) ── */
 const CFG = (typeof window.GLOBE_CONFIG !== 'undefined') ? window.GLOBE_CONFIG : {
-  showHigh: true, showMedium: true, showLow: true,
-  eventDensity: 80, rotateSpeed: 0.002,
-  showGrid: true, showStars: true,
+  showHigh:true, showMedium:true, showLow:true,
+  eventDensity:80, rotateSpeed:0.0015, showGrid:true, showStars:true,
 };
 
-/* ══ SCENE SETUP ══════════════════════════════════════ */
-const canvas  = document.getElementById('globe-canvas');
-const W = () => window.innerWidth;
-const H = () => window.innerHeight;
+/* ══ COUNTRY DATA ═══════════════════════════════════════
+   Each entry: { name, flag, lat, lng, latSpan, lngSpan,
+                 riskProfile:'HIGH'|'MEDIUM'|'LOW',
+                 hotspots: [[lat,lng], ...] }
+   hotspots = city/road corridors known for accidents
+   ══════════════════════════════════════════════════════ */
+const COUNTRIES = [
+  { name:"United States",    flag:"🇺🇸", lat:38,   lng:-97,  latSpan:25, lngSpan:55,  riskProfile:"HIGH",
+    hotspots:[[34.05,-118.24],[33.99,-118.47],[34.15,-118.35],[34.0,-117.9],[33.8,-118.1],
+              [40.71,-74.01],[40.75,-73.95],[40.65,-73.88],[40.78,-73.97],[40.80,-73.93],
+              [41.88,-87.63],[41.83,-87.75],[41.92,-87.68],[41.76,-87.67],[41.85,-87.8],
+              [29.76,-95.37],[29.72,-95.5],[29.65,-95.3],[29.8,-95.45],[29.7,-95.25],
+              [33.45,-112.07],[33.4,-111.9],[33.5,-112.2],[33.35,-112.1],[33.55,-112.0],
+              [47.61,-122.33],[47.55,-122.25],[47.67,-122.4],[47.5,-122.2],[47.7,-122.3],
+              [25.77,-80.19],[25.82,-80.25],[25.65,-80.35],[25.9,-80.1],[25.75,-80.4],
+              [32.78,-96.80],[32.7,-96.9],[32.85,-96.75],[32.75,-96.65],[32.9,-96.85],
+              [39.95,-75.17],[39.88,-75.25],[40.05,-75.1],[39.9,-75.0],[40.0,-75.3],
+              [36.17,-115.14],[36.22,-115.2],[36.1,-115.0],[36.25,-115.1],[36.08,-115.2]] },
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(W(), H());
+  { name:"India",            flag:"🇮🇳", lat:22,   lng:78,   latSpan:24, lngSpan:28,  riskProfile:"HIGH",
+    hotspots:[[28.61,77.21],[28.5,77.1],[28.7,77.35],[28.45,77.2],[28.65,77.05],
+              [19.08,72.88],[19.2,72.95],[18.95,72.82],[19.1,72.75],[19.15,72.98],
+              [12.97,77.59],[12.9,77.5],[13.0,77.65],[12.85,77.55],[12.95,77.72],
+              [22.57,88.36],[22.48,88.28],[22.65,88.42],[22.5,88.5],[22.7,88.3],
+              [17.39,78.49],[17.45,78.55],[17.32,78.42],[17.5,78.6],[17.28,78.5],
+              [13.08,80.27],[13.12,80.2],[13.0,80.3],[13.15,80.25],[13.05,80.35]] },
+
+  { name:"China",            flag:"🇨🇳", lat:36,   lng:105,  latSpan:30, lngSpan:40,  riskProfile:"HIGH",
+    hotspots:[[39.9,116.4],[39.95,116.5],[39.85,116.35],[40.0,116.55],[39.78,116.3],
+              [31.23,121.47],[31.3,121.55],[31.18,121.4],[31.35,121.6],[31.1,121.35],
+              [23.13,113.26],[23.2,113.35],[23.05,113.2],[23.18,113.45],[22.98,113.15],
+              [22.54,114.06],[22.6,114.15],[22.48,114.0],[22.55,114.2],[22.42,113.95],
+              [30.57,104.07],[30.65,104.15],[30.5,104.0],[30.6,104.25],[30.45,103.95]] },
+
+  { name:"Brazil",           flag:"🇧🇷", lat:-14,  lng:-51,  latSpan:30, lngSpan:35,  riskProfile:"HIGH",
+    hotspots:[[-23.55,-46.63],[-23.62,-46.7],[-23.48,-46.55],[-23.7,-46.75],[-23.4,-46.5],
+              [-22.9,-43.17],[-22.95,-43.25],[-22.85,-43.1],[-23.0,-43.3],[-22.8,-43.05],
+              [-19.92,-43.94],[-19.98,-44.0],[-19.85,-43.88],[-20.0,-44.08],[-19.78,-43.82],
+              [-12.97,-38.52],[-13.02,-38.58],[-12.92,-38.45],[-13.1,-38.6],[-12.85,-38.4]] },
+
+  { name:"United Kingdom",   flag:"🇬🇧", lat:54,   lng:-2,   latSpan:10, lngSpan:10,  riskProfile:"MEDIUM",
+    hotspots:[[51.51,-0.13],[51.55,-0.2],[51.48,-0.08],[51.53,-0.28],[51.45,-0.02],
+              [53.48,-2.24],[53.52,-2.32],[53.44,-2.18],[53.55,-2.28],[53.42,-2.15],
+              [55.86,-4.25],[55.9,-4.32],[55.82,-4.18],[55.88,-4.38],[55.78,-4.12],
+              [52.48,-1.9],[52.52,-1.97],[52.44,-1.84],[52.55,-2.0],[52.42,-1.78]] },
+
+  { name:"Germany",          flag:"🇩🇪", lat:51,   lng:10,   latSpan:10, lngSpan:12,  riskProfile:"MEDIUM",
+    hotspots:[[52.52,13.4],[52.56,13.48],[52.48,13.33],[52.58,13.55],[52.44,13.28],
+              [48.14,11.58],[48.18,11.65],[48.1,11.52],[48.22,11.72],[48.06,11.46],
+              [53.57,10.02],[53.62,10.1],[53.52,9.95],[53.65,10.18],[53.48,9.88],
+              [51.23,6.79],[51.27,6.86],[51.19,6.73],[51.3,6.92],[51.15,6.67]] },
+
+  { name:"France",           flag:"🇫🇷", lat:46,   lng:2,    latSpan:10, lngSpan:12,  riskProfile:"MEDIUM",
+    hotspots:[[48.85,2.35],[48.9,2.42],[48.8,2.28],[48.92,2.5],[48.75,2.22],
+              [45.75,4.85],[45.8,4.92],[45.7,4.78],[45.82,5.0],[45.65,4.72],
+              [43.3,5.4],[43.35,5.47],[43.25,5.33],[43.38,5.55],[43.2,5.28],
+              [44.84,-0.58],[44.88,-0.52],[44.8,-0.64],[44.9,-0.46],[44.76,-0.7]] },
+
+  { name:"Russia",           flag:"🇷🇺", lat:61,   lng:90,   latSpan:30, lngSpan:90,  riskProfile:"HIGH",
+    hotspots:[[55.75,37.62],[55.8,37.7],[55.7,37.55],[55.85,37.78],[55.65,37.48],
+              [59.94,30.32],[59.98,30.4],[59.9,30.25],[60.02,30.48],[59.86,30.18],
+              [56.85,60.62],[56.9,60.7],[56.8,60.55],[56.92,60.78],[56.75,60.48],
+              [54.99,82.9],[55.03,82.98],[54.95,82.83],[55.06,83.06],[54.9,82.76]] },
+
+  { name:"Japan",            flag:"🇯🇵", lat:37,   lng:137,  latSpan:14, lngSpan:16,  riskProfile:"MEDIUM",
+    hotspots:[[35.69,139.69],[35.73,139.76],[35.65,139.63],[35.77,139.82],[35.61,139.57],
+              [34.69,135.5],[34.73,135.57],[34.65,135.43],[34.77,135.63],[34.61,135.37],
+              [35.18,136.9],[35.22,136.97],[35.14,136.83],[35.25,137.04],[35.1,136.77],
+              [43.06,141.35],[43.1,141.42],[43.02,141.28],[43.13,141.5],[42.98,141.22]] },
+
+  { name:"Australia",        flag:"🇦🇺", lat:-25,  lng:133,  latSpan:28, lngSpan:35,  riskProfile:"MEDIUM",
+    hotspots:[[-33.87,151.21],[-33.92,151.28],[-33.82,151.15],[-33.95,151.35],[-33.78,151.08],
+              [-37.81,144.96],[-37.86,145.03],[-37.76,144.89],[-37.88,145.1],[-37.72,144.83],
+              [-27.47,153.03],[-27.52,153.1],[-27.42,152.96],[-27.55,153.17],[-27.38,152.9],
+              [-31.95,115.86],[-32.0,115.93],[-31.9,115.79],[-32.03,116.0],[-31.86,115.73]] },
+
+  { name:"Canada",           flag:"🇨🇦", lat:57,   lng:-95,  latSpan:22, lngSpan:55,  riskProfile:"MEDIUM",
+    hotspots:[[43.7,-79.42],[43.75,-79.5],[43.65,-79.35],[43.78,-79.57],[43.61,-79.28],
+              [45.5,-73.57],[45.55,-73.64],[45.45,-73.5],[45.58,-73.72],[45.41,-73.43],
+              [51.05,-114.07],[51.1,-114.15],[51.0,-114.0],[51.12,-114.22],[50.96,-113.93],
+              [49.28,-123.12],[49.32,-123.2],[49.24,-123.05],[49.35,-123.27],[49.2,-122.98]] },
+
+  { name:"Mexico",           flag:"🇲🇽", lat:24,   lng:-102, latSpan:16, lngSpan:18,  riskProfile:"HIGH",
+    hotspots:[[19.43,-99.13],[19.47,-99.2],[19.39,-99.07],[19.5,-99.27],[19.35,-99.0],
+              [20.97,-89.62],[21.02,-89.68],[20.92,-89.56],[21.05,-89.75],[20.88,-89.5],
+              [25.67,-100.31],[25.72,-100.38],[25.62,-100.24],[25.75,-100.45],[25.58,-100.18],
+              [20.66,-103.35],[20.71,-103.42],[20.61,-103.28],[20.74,-103.49],[20.57,-103.22]] },
+
+  { name:"South Africa",     flag:"🇿🇦", lat:-29,  lng:25,   latSpan:18, lngSpan:18,  riskProfile:"HIGH",
+    hotspots:[[-26.2,28.04],[-26.25,28.11],[-26.15,27.97],[-26.28,28.18],[-26.11,27.9],
+              [-33.92,18.42],[-33.97,18.49],[-33.87,18.35],[-34.0,18.56],[-33.83,18.28],
+              [-29.86,31.01],[-29.91,31.08],[-29.81,30.94],[-29.94,31.15],[-29.77,30.87],
+              [-25.75,28.24],[-25.8,28.31],[-25.7,28.17],[-25.83,28.38],[-25.66,28.1]] },
+
+  { name:"Nigeria",          flag:"🇳🇬", lat:9,    lng:8,    latSpan:14, lngSpan:14,  riskProfile:"HIGH",
+    hotspots:[[6.52,3.38],[6.57,3.45],[6.47,3.31],[6.6,3.52],[6.43,3.24],
+              [9.07,7.4],[9.12,7.47],[9.02,7.33],[9.15,7.54],[8.98,7.26],
+              [4.82,7.0],[4.87,7.07],[4.77,6.93],[4.9,7.14],[4.73,6.86],
+              [12.0,8.52],[12.05,8.59],[11.95,8.45],[12.08,8.66],[11.91,8.38]] },
+
+  { name:"Egypt",            flag:"🇪🇬", lat:27,   lng:30,   latSpan:16, lngSpan:16,  riskProfile:"HIGH",
+    hotspots:[[30.06,31.24],[30.1,31.31],[30.02,31.17],[30.13,31.38],[29.98,31.1],
+              [31.2,29.92],[31.24,29.99],[31.16,29.85],[31.27,30.06],[31.12,29.78],
+              [30.58,32.27],[30.62,32.34],[30.54,32.2],[30.65,32.41],[30.5,32.13],
+              [29.07,31.1],[29.11,31.17],[29.03,31.03],[29.14,31.24],[28.99,30.96]] },
+
+  { name:"Indonesia",        flag:"🇮🇩", lat:-3,   lng:117,  latSpan:15, lngSpan:45,  riskProfile:"HIGH",
+    hotspots:[[-6.21,106.85],[-6.26,106.92],[-6.16,106.78],[-6.28,106.99],[-6.12,106.72],
+              [-7.25,112.75],[-7.3,112.82],[-7.2,112.68],[-7.32,112.89],[-7.16,112.62],
+              [-6.91,107.61],[-6.96,107.68],[-6.86,107.54],[-6.98,107.75],[-6.82,107.47],
+              [-8.65,115.22],[-8.7,115.29],[-8.6,115.15],[-8.72,115.36],[-8.56,115.08]] },
+
+  { name:"Pakistan",         flag:"🇵🇰", lat:30,   lng:69,   latSpan:16, lngSpan:16,  riskProfile:"HIGH",
+    hotspots:[[33.72,73.04],[33.76,73.11],[33.68,72.97],[33.79,73.18],[33.64,72.9],
+              [24.86,67.01],[24.9,67.08],[24.82,66.94],[24.93,67.15],[24.78,66.87],
+              [31.55,74.35],[31.59,74.42],[31.51,74.28],[31.62,74.49],[31.47,74.21],
+              [30.19,67.01],[30.23,67.08],[30.15,66.94],[30.26,67.15],[30.11,66.87]] },
+
+  { name:"Turkey",           flag:"🇹🇷", lat:39,   lng:35,   latSpan:10, lngSpan:20,  riskProfile:"HIGH",
+    hotspots:[[41.01,28.98],[41.05,29.05],[40.97,28.91],[41.08,29.12],[40.93,28.84],
+              [39.93,32.85],[39.97,32.92],[39.89,32.78],[40.0,32.99],[39.85,32.71],
+              [38.41,27.14],[38.45,27.21],[38.37,27.07],[38.48,27.28],[38.33,27.0],
+              [37.0,35.33],[37.04,35.4],[36.96,35.26],[37.07,35.47],[36.92,35.19]] },
+
+  { name:"Iran",             flag:"🇮🇷", lat:32,   lng:53,   latSpan:16, lngSpan:20,  riskProfile:"HIGH",
+    hotspots:[[35.7,51.42],[35.74,51.49],[35.66,51.35],[35.77,51.56],[35.62,51.28],
+              [32.66,51.67],[32.7,51.74],[32.62,51.6],[32.73,51.81],[32.58,51.53],
+              [36.3,59.6],[36.34,59.67],[36.26,59.53],[36.37,59.74],[36.22,59.46],
+              [29.61,52.53],[29.65,52.6],[29.57,52.46],[29.68,52.67],[29.53,52.39]] },
+
+  { name:"Thailand",         flag:"🇹🇭", lat:15,   lng:101,  latSpan:14, lngSpan:10,  riskProfile:"HIGH",
+    hotspots:[[13.75,100.52],[13.8,100.59],[13.7,100.45],[13.82,100.66],[13.66,100.38],
+              [18.79,98.98],[18.83,99.05],[18.75,98.91],[18.86,99.12],[18.71,98.84],
+              [7.89,98.3],[7.93,98.37],[7.85,98.23],[7.96,98.44],[7.81,98.16],
+              [16.87,100.16],[16.91,100.23],[16.83,100.09],[16.94,100.3],[16.79,100.02]] },
+
+  { name:"Vietnam",          flag:"🇻🇳", lat:16,   lng:106,  latSpan:16, lngSpan:8,   riskProfile:"HIGH",
+    hotspots:[[21.03,105.85],[21.07,105.92],[20.99,105.78],[21.1,105.99],[20.95,105.71],
+              [10.78,106.7],[10.82,106.77],[10.74,106.63],[10.85,106.84],[10.7,106.56],
+              [16.07,108.22],[16.11,108.29],[16.03,108.15],[16.14,108.36],[15.99,108.08],
+              [10.03,105.78],[10.07,105.85],[9.99,105.71],[10.1,105.92],[9.95,105.64]] },
+
+  { name:"Philippines",      flag:"🇵🇭", lat:13,   lng:122,  latSpan:16, lngSpan:12,  riskProfile:"MEDIUM",
+    hotspots:[[14.6,121.0],[14.64,121.07],[14.56,120.93],[14.67,121.14],[14.52,120.86],
+              [10.72,122.56],[10.76,122.63],[10.68,122.49],[10.79,122.7],[10.64,122.42],
+              [7.19,125.46],[7.23,125.53],[7.15,125.39],[7.26,125.6],[7.11,125.32]] },
+
+  { name:"South Korea",      flag:"🇰🇷", lat:36,   lng:128,  latSpan:6,  lngSpan:8,   riskProfile:"MEDIUM",
+    hotspots:[[37.57,126.98],[37.61,127.05],[37.53,126.91],[37.64,127.12],[37.49,126.84],
+              [35.16,129.07],[35.2,129.14],[35.12,129.0],[35.23,129.21],[35.08,128.93],
+              [35.87,128.6],[35.91,128.67],[35.83,128.53],[35.94,128.74],[35.79,128.46]] },
+
+  { name:"Argentina",        flag:"🇦🇷", lat:-35,  lng:-65,  latSpan:30, lngSpan:20,  riskProfile:"MEDIUM",
+    hotspots:[[-34.61,-58.38],[-34.66,-58.45],[-34.56,-58.31],[-34.68,-58.52],[-34.52,-58.24],
+              [-31.42,-64.19],[-31.47,-64.26],[-31.37,-64.12],[-31.5,-64.33],[-31.33,-64.05],
+              [-32.89,-68.84],[-32.94,-68.91],[-32.84,-68.77],[-32.97,-68.98],[-32.8,-68.7],
+              [-27.47,-58.84],[-27.52,-58.91],[-27.42,-58.77],[-27.55,-58.98],[-27.38,-58.7]] },
+
+  { name:"Colombia",         flag:"🇨🇴", lat:4,    lng:-74,  latSpan:16, lngSpan:16,  riskProfile:"HIGH",
+    hotspots:[[4.71,-74.07],[4.75,-74.14],[4.67,-74.0],[4.78,-74.21],[4.63,-73.93],
+              [6.24,-75.59],[6.28,-75.66],[6.2,-75.52],[6.31,-75.73],[6.16,-75.45],
+              [3.43,-76.54],[3.47,-76.61],[3.39,-76.47],[3.5,-76.68],[3.35,-76.4],
+              [10.4,-75.52],[10.44,-75.59],[10.36,-75.45],[10.47,-75.66],[10.32,-75.38]] },
+
+  { name:"Saudi Arabia",     flag:"🇸🇦", lat:24,   lng:45,   latSpan:14, lngSpan:18,  riskProfile:"HIGH",
+    hotspots:[[24.69,46.72],[24.73,46.79],[24.65,46.65],[24.76,46.86],[24.61,46.58],
+              [21.49,39.19],[21.53,39.26],[21.45,39.12],[21.56,39.33],[21.41,39.05],
+              [26.44,50.1],[26.48,50.17],[26.4,50.03],[26.51,50.24],[26.36,49.96],
+              [17.34,44.21],[17.38,44.28],[17.3,44.14],[17.41,44.35],[17.26,44.07]] },
+
+  { name:"UAE",              flag:"🇦🇪", lat:24,   lng:54,   latSpan:6,  lngSpan:8,   riskProfile:"MEDIUM",
+    hotspots:[[24.47,54.37],[24.51,54.44],[24.43,54.3],[24.54,54.51],[24.39,54.23],
+              [25.2,55.27],[25.24,55.34],[25.16,55.2],[25.27,55.41],[25.12,55.13],
+              [25.07,55.14],[25.11,55.21],[25.03,55.07],[25.14,55.28],[24.99,55.0]] },
+
+  { name:"Kenya",            flag:"🇰🇪", lat:-1,   lng:38,   latSpan:12, lngSpan:12,  riskProfile:"HIGH",
+    hotspots:[[-1.29,36.82],[-1.25,36.89],[-1.33,36.75],[-1.22,36.96],[-1.37,36.68],
+              [-4.04,39.67],[-4.0,39.74],[-4.08,39.6],[-3.97,39.81],[-4.12,39.53],
+              [0.52,35.27],[0.56,35.34],[0.48,35.2],[0.59,35.41],[0.44,35.13]] },
+
+  { name:"Ethiopia",         flag:"🇪🇹", lat:9,    lng:40,   latSpan:14, lngSpan:14,  riskProfile:"HIGH",
+    hotspots:[[9.02,38.75],[9.06,38.82],[8.98,38.68],[9.09,38.89],[8.94,38.61],
+              [11.59,37.39],[11.63,37.46],[11.55,37.32],[11.66,37.53],[11.51,37.25],
+              [7.05,38.47],[7.09,38.54],[7.01,38.4],[7.12,38.61],[6.97,38.33]] },
+
+  { name:"Ghana",            flag:"🇬🇭", lat:7,    lng:-1,   latSpan:10, lngSpan:8,   riskProfile:"HIGH",
+    hotspots:[[5.55,-0.2],[5.59,-0.13],[5.51,-0.27],[5.62,-0.06],[5.47,-0.34],
+              [6.69,-1.62],[6.73,-1.55],[6.65,-1.69],[6.76,-1.48],[6.61,-1.76],
+              [9.4,-0.85],[9.44,-0.78],[9.36,-0.92],[9.47,-0.71],[9.32,-0.99]] },
+
+  { name:"Morocco",          flag:"🇲🇦", lat:31,   lng:-7,   latSpan:10, lngSpan:14,  riskProfile:"MEDIUM",
+    hotspots:[[33.99,-6.85],[34.03,-6.78],[33.95,-6.92],[34.06,-6.71],[33.91,-6.99],
+              [33.59,-7.62],[33.63,-7.55],[33.55,-7.69],[33.66,-7.48],[33.51,-7.76],
+              [35.76,-5.84],[35.8,-5.77],[35.72,-5.91],[35.83,-5.7],[35.68,-5.98]] },
+
+  { name:"Spain",            flag:"🇪🇸", lat:40,   lng:-3,   latSpan:10, lngSpan:14,  riskProfile:"MEDIUM",
+    hotspots:[[40.42,-3.7],[40.46,-3.63],[40.38,-3.77],[40.49,-3.56],[40.34,-3.84],
+              [41.39,2.17],[41.43,2.24],[41.35,2.1],[41.46,2.31],[41.31,2.03],
+              [37.39,-5.99],[37.43,-5.92],[37.35,-6.06],[37.46,-5.85],[37.31,-6.13],
+              [39.47,-0.37],[39.51,-0.3],[39.43,-0.44],[39.54,-0.23],[39.39,-0.51]] },
+
+  { name:"Italy",            flag:"🇮🇹", lat:42,   lng:12,   latSpan:10, lngSpan:10,  riskProfile:"MEDIUM",
+    hotspots:[[41.9,12.5],[41.94,12.57],[41.86,12.43],[41.97,12.64],[41.82,12.36],
+              [45.46,9.19],[45.5,9.26],[45.42,9.12],[45.53,9.33],[45.38,9.05],
+              [40.85,14.27],[40.89,14.34],[40.81,14.2],[40.92,14.41],[40.77,14.13],
+              [45.07,7.69],[45.11,7.76],[45.03,7.62],[45.14,7.83],[44.99,7.55]] },
+
+  { name:"Poland",           flag:"🇵🇱", lat:52,   lng:20,   latSpan:8,  lngSpan:14,  riskProfile:"MEDIUM",
+    hotspots:[[52.23,21.01],[52.27,21.08],[52.19,20.94],[52.3,21.15],[52.15,20.87],
+              [50.06,19.94],[50.1,20.01],[50.02,19.87],[50.13,20.08],[49.98,19.8],
+              [51.11,17.03],[51.15,17.1],[51.07,16.96],[51.18,17.17],[51.03,16.89]] },
+
+  { name:"Ukraine",          flag:"🇺🇦", lat:49,   lng:32,   latSpan:10, lngSpan:20,  riskProfile:"HIGH",
+    hotspots:[[50.45,30.52],[50.49,30.59],[50.41,30.45],[50.52,30.66],[50.37,30.38],
+              [49.84,24.03],[49.88,24.1],[49.8,23.96],[49.91,24.17],[49.76,23.89],
+              [47.84,35.14],[47.88,35.21],[47.8,35.07],[47.91,35.28],[47.76,35.0]] },
+
+  { name:"Netherlands",      flag:"🇳🇱", lat:52,   lng:5,    latSpan:4,  lngSpan:6,   riskProfile:"LOW",
+    hotspots:[[52.37,4.9],[52.41,4.97],[52.33,4.83],[52.44,5.04],[52.29,4.76],
+              [51.92,4.48],[51.96,4.55],[51.88,4.41],[51.99,4.62],[51.84,4.34],
+              [52.09,5.12],[52.13,5.19],[52.05,5.05],[52.16,5.26],[52.01,4.98]] },
+
+  { name:"Sweden",           flag:"🇸🇪", lat:62,   lng:17,   latSpan:14, lngSpan:12,  riskProfile:"LOW",
+    hotspots:[[59.33,18.07],[59.37,18.14],[59.29,18.0],[59.4,18.21],[59.25,17.93],
+              [57.71,11.97],[57.75,12.04],[57.67,11.9],[57.78,12.11],[57.63,11.83],
+              [55.6,13.0],[55.64,13.07],[55.56,12.93],[55.67,13.14],[55.52,12.86]] },
+
+  { name:"Norway",           flag:"🇳🇴", lat:64,   lng:16,   latSpan:18, lngSpan:18,  riskProfile:"LOW",
+    hotspots:[[59.91,10.75],[59.95,10.82],[59.87,10.68],[59.98,10.89],[59.83,10.61],
+              [60.39,5.32],[60.43,5.39],[60.35,5.25],[60.46,5.46],[60.31,5.18]] },
+
+  { name:"Argentina",        flag:"🇦🇷", lat:-35, lng:-65,   latSpan:30, lngSpan:20,  riskProfile:"MEDIUM",
+    hotspots:[[-34.61,-58.38],[-34.66,-58.45],[-34.56,-58.31]] },
+
+  { name:"Malaysia",         flag:"🇲🇾", lat:4,    lng:109,  latSpan:8,  lngSpan:16,  riskProfile:"MEDIUM",
+    hotspots:[[3.14,101.69],[3.18,101.76],[3.1,101.62],[3.21,101.83],[3.06,101.55],
+              [1.56,110.36],[1.6,110.43],[1.52,110.29],[1.63,110.5],[1.48,110.22],
+              [5.42,100.33],[5.46,100.4],[5.38,100.26],[5.49,100.47],[5.34,100.19]] },
+
+  { name:"Singapore",        flag:"🇸🇬", lat:1,    lng:104,  latSpan:1,  lngSpan:1,   riskProfile:"LOW",
+    hotspots:[[1.29,103.85],[1.33,103.92],[1.25,103.78],[1.36,103.99],[1.21,103.71],
+              [1.31,103.8],[1.27,103.88],[1.35,103.75],[1.23,103.95],[1.38,103.83]] },
+
+  { name:"New Zealand",      flag:"🇳🇿", lat:-41,  lng:174,  latSpan:14, lngSpan:10,  riskProfile:"LOW",
+    hotspots:[[-36.86,174.76],[-36.82,174.83],[-36.9,174.69],[-36.79,174.9],[-36.94,174.62],
+              [-43.53,172.64],[-43.49,172.71],[-43.57,172.57],[-43.46,172.78],[-43.61,172.5]] },
+];
+
+/* ══ SCENE ════════════════════════════════════════════ */
+const canvas  = document.getElementById('globe-canvas');
+const W=()=>window.innerWidth, H=()=>window.innerHeight;
+
+const renderer = new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(W(),H());
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 
 const scene  = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, W()/H(), 0.1, 1000);
-camera.position.set(0, 0, 2.6);
+const camera = new THREE.PerspectiveCamera(45,W()/H(),0.1,1000);
+camera.position.set(0,0,2.6);
 
-window.addEventListener('resize', () => {
-  camera.aspect = W()/H();
-  camera.updateProjectionMatrix();
-  renderer.setSize(W(), H());
+window.addEventListener('resize',()=>{
+  camera.aspect=W()/H(); camera.updateProjectionMatrix(); renderer.setSize(W(),H());
 });
 
-/* ══ LIGHTING ═════════════════════════════════════════ */
-// Sun-like directional light
-const sunLight = new THREE.DirectionalLight(0xffeedd, 2.6);
-sunLight.position.set(4, 2, 5);
-scene.add(sunLight);
+/* ── Lighting ── */
+const sunLight = new THREE.DirectionalLight(0xffeedd,2.6);
+sunLight.position.set(4,2,5); scene.add(sunLight);
+scene.add(new THREE.AmbientLight(0x1a3050,0.8));
+const back = new THREE.DirectionalLight(0x103040,0.4);
+back.position.set(-5,-2,-4); scene.add(back);
 
-// Dim ambient so night side is dark but not black
-const ambient = new THREE.AmbientLight(0x1a3050, 0.8);
-scene.add(ambient);
-
-// Subtle back fill
-const backLight = new THREE.DirectionalLight(0x103040, 0.4);
-backLight.position.set(-5, -2, -4);
-scene.add(backLight);
-
-/* ══ EARTH GLOBE ══════════════════════════════════════ */
+/* ── Earth ── */
 const RADIUS = 1.0;
-const globeGeo = new THREE.SphereGeometry(RADIUS, 64, 64);
+const globeGeo = new THREE.SphereGeometry(RADIUS,64,64);
 
-/* Procedural texture: ocean + land impression via canvas */
-function buildEarthTexture() {
-  const sz = 1024;
-  const tc  = document.createElement('canvas');
-  tc.width = sz; tc.height = sz/2;
-  const tx  = tc.getContext('2d');
-
-  // Ocean base
-  const oceanGrad = tx.createLinearGradient(0,0,0,sz/2);
-  oceanGrad.addColorStop(0, '#0a2240');
-  oceanGrad.addColorStop(0.5,'#0d2e52');
-  oceanGrad.addColorStop(1, '#06192e');
-  tx.fillStyle = oceanGrad;
-  tx.fillRect(0,0,sz,sz/2);
-
-  // Simplified continent silhouettes (lon/lat → pixel helpers)
-  function ll(lat,lng,w,h){ return [(lng+180)/360*w, (90-lat)/180*h]; }
-  function poly(pts,fill){ tx.beginPath(); const [sx,sy]=pts[0]; tx.moveTo(sx,sy);
-    for(let i=1;i<pts.length;i++){const[x,y]=pts[i];tx.lineTo(x,y);} tx.closePath();
-    tx.fillStyle=fill; tx.fill(); }
-
-  const land = '#1a4530';
-  const W2=sz, H2=sz/2;
-
-  // North America
-  poly([ll(70,-140,W2,H2),ll(70,-60,W2,H2),ll(50,-55,W2,H2),ll(25,-80,W2,H2),
-        ll(20,-87,W2,H2),ll(15,-90,W2,H2),ll(8,-77,W2,H2),ll(8,-82,W2,H2),
-        ll(30,-117,W2,H2),ll(50,-125,W2,H2),ll(60,-140,W2,H2),ll(70,-140,W2,H2)], land);
-
-  // South America
-  poly([ll(12,-73,W2,H2),ll(12,-60,W2,H2),ll(0,-50,W2,H2),ll(-10,-37,W2,H2),
-        ll(-35,-57,W2,H2),ll(-55,-67,W2,H2),ll(-55,-72,W2,H2),ll(-40,-73,W2,H2),
-        ll(-20,-70,W2,H2),ll(0,-78,W2,H2),ll(12,-73,W2,H2)], land);
-
-  // Europe
-  poly([ll(71,20,W2,H2),ll(71,30,W2,H2),ll(55,30,W2,H2),ll(45,35,W2,H2),
-        ll(36,28,W2,H2),ll(36,10,W2,H2),ll(43,-9,W2,H2),ll(50,-5,W2,H2),
-        ll(58,-5,W2,H2),ll(58,15,W2,H2),ll(65,15,W2,H2),ll(71,20,W2,H2)], land);
-
-  // Africa
-  poly([ll(37,10,W2,H2),ll(37,35,W2,H2),ll(20,55,W2,H2),ll(10,45,W2,H2),
-        ll(-10,40,W2,H2),ll(-35,26,W2,H2),ll(-34,18,W2,H2),ll(-20,13,W2,H2),
-        ll(0,8,W2,H2),ll(10,-18,W2,H2),ll(20,-17,W2,H2),ll(37,10,W2,H2)], land);
-
-  // Asia
-  poly([ll(71,30,W2,H2),ll(71,180,W2,H2),ll(60,160,W2,H2),ll(50,145,W2,H2),
-        ll(35,140,W2,H2),ll(20,120,W2,H2),ll(1,104,W2,H2),ll(8,77,W2,H2),
-        ll(22,68,W2,H2),ll(25,57,W2,H2),ll(12,43,W2,H2),ll(37,35,W2,H2),
-        ll(45,35,W2,H2),ll(55,30,W2,H2),ll(71,30,W2,H2)], land);
-
-  // Australia
-  poly([ll(-15,130,W2,H2),ll(-12,136,W2,H2),ll(-15,145,W2,H2),ll(-25,153,W2,H2),
-        ll(-38,145,W2,H2),ll(-38,140,W2,H2),ll(-32,116,W2,H2),ll(-22,114,W2,H2),
-        ll(-15,130,W2,H2)], land);
-
-  // Greenland
-  poly([ll(83,-45,W2,H2),ll(83,-15,W2,H2),ll(72,-22,W2,H2),ll(60,-46,W2,H2),
-        ll(60,-52,W2,H2),ll(70,-55,W2,H2),ll(83,-45,W2,H2)], land);
-
-  // Add slight noise texture
-  tx.globalAlpha = 0.07;
-  for(let i=0;i<2000;i++){
-    const x=Math.random()*sz,y=Math.random()*sz/2,r=Math.random()*3+1;
-    tx.beginPath(); tx.arc(x,y,r,0,Math.PI*2);
+function buildEarthTexture(){
+  const sz=1024; const tc=document.createElement('canvas');
+  tc.width=sz; tc.height=sz/2; const tx=tc.getContext('2d');
+  const og=tx.createLinearGradient(0,0,0,sz/2);
+  og.addColorStop(0,'#0a2240'); og.addColorStop(.5,'#0d2e52'); og.addColorStop(1,'#06192e');
+  tx.fillStyle=og; tx.fillRect(0,0,sz,sz/2);
+  const W2=sz,H2=sz/2;
+  function ll(lat,lng){return[(lng+180)/360*W2,(90-lat)/180*H2];}
+  function poly(pts,fill){tx.beginPath();const[sx,sy]=pts[0];tx.moveTo(sx,sy);
+    for(let i=1;i<pts.length;i++){const[x,y]=pts[i];tx.lineTo(x,y);}
+    tx.closePath();tx.fillStyle=fill;tx.fill();}
+  const land='#1a4530';
+  poly([ll(70,-140),ll(70,-60),ll(50,-55),ll(25,-80),ll(20,-87),ll(15,-90),ll(8,-77),
+        ll(8,-82),ll(30,-117),ll(50,-125),ll(60,-140),ll(70,-140)],land);
+  poly([ll(12,-73),ll(12,-60),ll(0,-50),ll(-10,-37),ll(-35,-57),ll(-55,-67),
+        ll(-55,-72),ll(-40,-73),ll(-20,-70),ll(0,-78),ll(12,-73)],land);
+  poly([ll(71,20),ll(71,30),ll(55,30),ll(45,35),ll(36,28),ll(36,10),
+        ll(43,-9),ll(50,-5),ll(58,-5),ll(58,15),ll(65,15),ll(71,20)],land);
+  poly([ll(37,10),ll(37,35),ll(20,55),ll(10,45),ll(-10,40),ll(-35,26),
+        ll(-34,18),ll(-20,13),ll(0,8),ll(10,-18),ll(20,-17),ll(37,10)],land);
+  poly([ll(71,30),ll(71,180),ll(60,160),ll(50,145),ll(35,140),ll(20,120),
+        ll(1,104),ll(8,77),ll(22,68),ll(25,57),ll(12,43),ll(37,35),
+        ll(45,35),ll(55,30),ll(71,30)],land);
+  poly([ll(-15,130),ll(-12,136),ll(-15,145),ll(-25,153),ll(-38,145),
+        ll(-38,140),ll(-32,116),ll(-22,114),ll(-15,130)],land);
+  poly([ll(83,-45),ll(83,-15),ll(72,-22),ll(60,-46),ll(60,-52),
+        ll(70,-55),ll(83,-45)],land);
+  tx.globalAlpha=.06;
+  for(let i=0;i<1800;i++){const x=Math.random()*sz,y=Math.random()*sz/2,r=Math.random()*3+1;
+    tx.beginPath();tx.arc(x,y,r,0,Math.PI*2);
     tx.fillStyle=`hsl(${200+Math.random()*40},${50+Math.random()*30}%,${20+Math.random()*20}%)`;
-    tx.fill();
-  }
+    tx.fill();}
   tx.globalAlpha=1;
-
-  // Polar ice caps
-  const iceN=tx.createRadialGradient(sz/2,0,0,sz/2,0,sz*0.12);
-  iceN.addColorStop(0,'rgba(200,230,255,.9)');
-  iceN.addColorStop(1,'rgba(180,220,255,0)');
-  tx.fillStyle=iceN; tx.fillRect(0,0,sz,sz/2);
-
-  const iceS=tx.createRadialGradient(sz/2,sz/2,0,sz/2,sz/2,sz*0.1);
-  iceS.addColorStop(0,'rgba(200,230,255,.85)');
-  iceS.addColorStop(1,'rgba(180,220,255,0)');
-  tx.fillStyle=iceS; tx.fillRect(0,0,sz,sz/2);
-
+  const iceN=tx.createRadialGradient(sz/2,0,0,sz/2,0,sz*.12);
+  iceN.addColorStop(0,'rgba(200,230,255,.88)');iceN.addColorStop(1,'rgba(180,220,255,0)');
+  tx.fillStyle=iceN;tx.fillRect(0,0,sz,sz/2);
+  const iceS=tx.createRadialGradient(sz/2,sz/2,0,sz/2,sz/2,sz*.09);
+  iceS.addColorStop(0,'rgba(200,230,255,.82)');iceS.addColorStop(1,'rgba(180,220,255,0)');
+  tx.fillStyle=iceS;tx.fillRect(0,0,sz,sz/2);
   return new THREE.CanvasTexture(tc);
 }
 
-/* Roughness / specular map — oceans shiny, land matte */
-function buildRoughTexture() {
-  const sz=512;
-  const tc=document.createElement('canvas'); tc.width=sz; tc.height=sz/2;
-  const tx=tc.getContext('2d');
-  tx.fillStyle='#444'; tx.fillRect(0,0,sz,sz/2); // land = rougher
-  // oceans (same logic, simpler)
-  tx.fillStyle='#111'; // ocean = smoother (reflective)
-  // simplified ocean mask
-  tx.fillRect(0,0,sz/4,sz/2);
-  tx.fillRect(sz*0.7,0,sz,sz/2);
-  return new THREE.CanvasTexture(tc);
-}
-
-const earthTex   = buildEarthTexture();
-const earthMat   = new THREE.MeshPhongMaterial({
-  map: earthTex,
-  specular: new THREE.Color(0x224466),
-  shininess: 38,
-  emissive: new THREE.Color(0x051525),
-  emissiveIntensity: 0.18,
+const earthMat = new THREE.MeshPhongMaterial({
+  map:buildEarthTexture(),specular:new THREE.Color(0x224466),
+  shininess:38,emissive:new THREE.Color(0x051525),emissiveIntensity:.18,
 });
-const earthMesh  = new THREE.Mesh(globeGeo, earthMat);
+const earthMesh = new THREE.Mesh(globeGeo,earthMat);
 scene.add(earthMesh);
 
-/* ── Atmosphere glow ── */
-const atmGeo = new THREE.SphereGeometry(RADIUS * 1.035, 48, 48);
+/* ── Atmosphere ── */
+const atmGeo = new THREE.SphereGeometry(RADIUS*1.035,48,48);
 const atmMat = new THREE.ShaderMaterial({
-  vertexShader: `
-    varying vec3 vNormal;
-    void main(){
-      vNormal = normalize(normalMatrix * normal);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-    }`,
-  fragmentShader: `
-    varying vec3 vNormal;
-    void main(){
-      float rim = 1.0 - abs(dot(vNormal, vec3(0,0,1)));
-      rim = pow(rim, 2.5);
-      gl_FragColor = vec4(0.12, 0.45, 0.85, rim * 0.55);
-    }`,
-  side: THREE.FrontSide,
-  transparent: true,
-  depthWrite: false,
-  blending: THREE.AdditiveBlending,
+  vertexShader:`varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec3 vN;void main(){float r=pow(1.-abs(dot(vN,vec3(0,0,1))),2.5);gl_FragColor=vec4(.12,.45,.85,r*.55);}`,
+  side:THREE.FrontSide,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
 });
-const atm = new THREE.Mesh(atmGeo, atmMat);
-scene.add(atm);
+const atm=new THREE.Mesh(atmGeo,atmMat);scene.add(atm);
+const outerAtm=new THREE.Mesh(new THREE.SphereGeometry(RADIUS*1.1,32,32),new THREE.ShaderMaterial({
+  vertexShader:`varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec3 vN;void main(){float r=pow(1.-abs(dot(vN,vec3(0,0,1))),4.5);gl_FragColor=vec4(.05,.20,.55,r*.18);}`,
+  side:THREE.BackSide,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+}));scene.add(outerAtm);
 
-/* ── Outer atmosphere haze ── */
-const outerAtmGeo = new THREE.SphereGeometry(RADIUS * 1.1, 32, 32);
-const outerAtmMat = new THREE.ShaderMaterial({
-  vertexShader: `
-    varying vec3 vNormal;
-    void main(){
-      vNormal = normalize(normalMatrix * normal);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-    }`,
-  fragmentShader: `
-    varying vec3 vNormal;
-    void main(){
-      float rim = 1.0 - abs(dot(vNormal, vec3(0,0,1)));
-      rim = pow(rim, 4.5);
-      gl_FragColor = vec4(0.05, 0.20, 0.55, rim * 0.20);
-    }`,
-  side: THREE.BackSide,
-  transparent: true,
-  depthWrite: false,
-  blending: THREE.AdditiveBlending,
-});
-scene.add(new THREE.Mesh(outerAtmGeo, outerAtmMat));
-
-/* ── Grid lines ── */
-if (CFG.showGrid) {
-  const gridGroup = new THREE.Group();
-
-  function latLngToVec3(lat, lng, r) {
-    const phi   = (90 - lat) * Math.PI / 180;
-    const theta = (lng + 180) * Math.PI / 180;
-    return new THREE.Vector3(
-      -r * Math.sin(phi) * Math.cos(theta),
-       r * Math.cos(phi),
-       r * Math.sin(phi) * Math.sin(theta)
-    );
+/* ── Grid ── */
+function latLngToVec3(lat,lng,r){
+  const phi=(90-lat)*Math.PI/180,theta=(lng+180)*Math.PI/180;
+  return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(theta));
+}
+if(CFG.showGrid){
+  const gg=new THREE.Group();
+  const gm=new THREE.LineBasicMaterial({color:0x336688,transparent:true,opacity:.18,depthWrite:false});
+  const em=new THREE.LineBasicMaterial({color:0x4488aa,transparent:true,opacity:.35,depthWrite:false});
+  const GR=RADIUS+.002;
+  for(let lat=-75;lat<=75;lat+=15){
+    const pts=[];for(let lng=-180;lng<=180;lng+=3)pts.push(latLngToVec3(lat,lng,GR));
+    gg.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),lat===0?em:gm));
   }
-
-  const gridMat = new THREE.LineBasicMaterial({
-    color: 0x336688, transparent: true, opacity: 0.18, depthWrite: false
-  });
-  const eqMat = new THREE.LineBasicMaterial({
-    color: 0x4488aa, transparent: true, opacity: 0.35, depthWrite: false
-  });
-  const GR = RADIUS + 0.002;
-
-  for (let lat = -75; lat <= 75; lat += 15) {
-    const pts = [];
-    for (let lng = -180; lng <= 180; lng += 3)
-      pts.push(latLngToVec3(lat, lng, GR));
-    const mat = lat === 0 ? eqMat : gridMat;
-    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+  for(let lng=-180;lng<180;lng+=15){
+    const pts=[];for(let lat=-90;lat<=90;lat+=3)pts.push(latLngToVec3(lat,lng,GR));
+    gg.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),gm));
   }
-  for (let lng = -180; lng < 180; lng += 15) {
-    const pts = [];
-    for (let lat = -90; lat <= 90; lat += 3)
-      pts.push(latLngToVec3(lat, lng, GR));
-    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gridMat));
-  }
-  earthMesh.add(gridGroup);
+  earthMesh.add(gg);
 }
 
-/* ══ STAR FIELD ═══════════════════════════════════════ */
-if (CFG.showStars) {
-  const starCount = 2200;
-  const starGeo   = new THREE.BufferGeometry();
-  const starPos   = new Float32Array(starCount * 3);
-  const starCol   = new Float32Array(starCount * 3);
-  for (let i = 0; i < starCount; i++) {
-    const theta = Math.random() * Math.PI * 2;
-    const phi   = Math.acos(2 * Math.random() - 1);
-    const r     = 150 + Math.random() * 150;
-    starPos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
-    starPos[i*3+1] = r * Math.cos(phi);
-    starPos[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
-    const brightness = 0.4 + Math.random() * 0.6;
-    const tint = Math.random();
-    starCol[i*3]   = brightness * (tint < 0.3 ? 0.85 : 1.0);
-    starCol[i*3+1] = brightness * (tint < 0.3 ? 0.85 : tint > 0.7 ? 0.90 : 1.0);
-    starCol[i*3+2] = brightness;
+/* ── Stars ── */
+if(CFG.showStars){
+  const n=2200,sg=new THREE.BufferGeometry();
+  const sp=new Float32Array(n*3),sc=new Float32Array(n*3);
+  for(let i=0;i<n;i++){
+    const t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1),r=150+Math.random()*150;
+    sp[i*3]=r*Math.sin(p)*Math.cos(t);sp[i*3+1]=r*Math.cos(p);sp[i*3+2]=r*Math.sin(p)*Math.sin(t);
+    const b=.4+Math.random()*.6,k=Math.random();
+    sc[i*3]=b*(k<.3?.85:1);sc[i*3+1]=b*(k<.3?.85:k>.7?.9:1);sc[i*3+2]=b;
   }
-  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-  starGeo.setAttribute('color',    new THREE.BufferAttribute(starCol, 3));
-  const starMat = new THREE.PointsMaterial({ size: 0.35, vertexColors: true, sizeAttenuation: true });
-  scene.add(new THREE.Points(starGeo, starMat));
+  sg.setAttribute('position',new THREE.BufferAttribute(sp,3));
+  sg.setAttribute('color',new THREE.BufferAttribute(sc,3));
+  scene.add(new THREE.Points(sg,new THREE.PointsMaterial({size:.35,vertexColors:true,sizeAttenuation:true})));
 }
 
-/* ══ RISK EVENT SYSTEM ════════════════════════════════ */
+/* ══ RISK EVENTS ══════════════════════════════════════ */
+const RISK_COLOR={HIGH:0xff3366,MEDIUM:0xffaa00,LOW:0x22ff88};
+const RISK_HEX={HIGH:'#ff3366',MEDIUM:'#ffaa00',LOW:'#22ff88'};
 
-const RISK_COLOR = { HIGH: 0xff3366, MEDIUM: 0xffaa00, LOW: 0x22ff88 };
-const RISK_HEX   = { HIGH: '#ff3366', MEDIUM: '#ffaa00', LOW: '#22ff88' };
+function buildGlowTex(color){
+  const sz=64,tc=document.createElement('canvas');tc.width=sz;tc.height=sz;
+  const tx=tc.getContext('2d'),g=tx.createRadialGradient(sz/2,sz/2,0,sz/2,sz/2,sz/2);
+  const hex='#'+color.toString(16).padStart(6,'0');
+  g.addColorStop(0,hex+'ff');g.addColorStop(.3,hex+'aa');g.addColorStop(.6,hex+'44');g.addColorStop(1,hex+'00');
+  tx.fillStyle=g;tx.fillRect(0,0,sz,sz);
+  return new THREE.CanvasTexture(tc);
+}
 
-const WORLD_CENTERS = [
-  // US metro areas
-  [40.71,-74.01],[34.05,-118.24],[41.88,-87.63],[29.76,-95.37],
-  [33.45,-112.07],[29.95,-90.07],[32.78,-96.80],[37.77,-122.42],
-  [47.61,-122.33],[39.95,-75.17],[42.36,-71.06],[25.77,-80.19],
-  [35.23,-80.84],[39.96,-82.99],[38.90,-77.04],[36.17,-86.78],
-  [35.15,-90.05],[36.17,-115.14],[45.52,-122.68],[44.98,-93.27],
-  [30.33,-81.66],[30.27,-97.74],[32.72,-97.32],[43.05,-76.15],
-  [38.25,-85.76],[39.77,-86.16],[41.50,-81.69],[37.34,-121.89],
-  // International
-  [51.51,-0.13],[48.85,2.35],[35.69,139.69],[28.61,77.21],
-  [-23.55,-46.63],[55.75,37.62],[39.90,116.40],[1.29,103.85],
-  [31.23,121.47],[-33.87,151.21],[40.42,-3.70],[52.37,4.90],
-  [37.57,126.98],[-1.29,36.82],[30.06,31.24],[19.43,-99.13],
-  [6.52,3.38],[24.47,54.37],[13.75,100.52],[23.13,113.26],
+function latLngTo3D(lat,lng,r){
+  const phi=(90-lat)*Math.PI/180,theta=(lng+180)*Math.PI/180;
+  return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(theta));
+}
+
+/* World-view random centers (US-skewed + international) */
+const WORLD_CENTERS=[
+  [40.71,-74.01],[34.05,-118.24],[41.88,-87.63],[29.76,-95.37],[33.45,-112.07],
+  [29.95,-90.07],[32.78,-96.80],[37.77,-122.42],[47.61,-122.33],[39.95,-75.17],
+  [42.36,-71.06],[25.77,-80.19],[35.23,-80.84],[39.96,-82.99],[38.90,-77.04],
+  [51.51,-0.13],[48.85,2.35],[35.69,139.69],[28.61,77.21],[-23.55,-46.63],
+  [55.75,37.62],[39.90,116.40],[1.29,103.85],[31.23,121.47],[-33.87,151.21],
+  [40.42,-3.70],[52.37,4.90],[37.57,126.98],[-1.29,36.82],[30.06,31.24],
+  [19.43,-99.13],[6.52,3.38],[24.47,54.37],[13.75,100.52],[23.13,113.26],
 ];
 
-function latLngTo3D(lat, lng, r) {
-  const phi   = (90 - lat) * Math.PI / 180;
-  const theta = (lng + 180) * Math.PI / 180;
-  return new THREE.Vector3(
-    -r * Math.sin(phi) * Math.cos(theta),
-     r * Math.cos(phi),
-     r * Math.sin(phi) * Math.sin(theta)
-  );
-}
-
-/* Each event: Three.js sprite + optional ring */
 class RiskEvent {
-  constructor() {
-    const center = WORLD_CENTERS[Math.floor(Math.random() * WORLD_CENTERS.length)];
-    this.lat   = center[0] + (Math.random()-.5) * 7;
-    this.lng   = center[1] + (Math.random()-.5) * 7;
-    const r    = Math.random();
-    this.risk  = r < .32 ? 'HIGH' : r < .65 ? 'MEDIUM' : 'LOW';
-    this.visib = (Math.random()*9+1).toFixed(1);
-    this.wind  = (Math.random()*35).toFixed(1);
-    this.temp  = (Math.random()*55+32).toFixed(1);
-    this.ttl   = 14000 + Math.random() * 18000;
-    this.born  = Date.now() - Math.random() * 10000;
+  constructor(lat,lng,risk,overrideVisib,overrideWind,overrideTemp){
+    this.lat  = lat;
+    this.lng  = lng;
+    this.risk = risk;
+    this.visib = overrideVisib || (Math.random()*9+1).toFixed(1);
+    this.wind  = overrideWind  || (Math.random()*35).toFixed(1);
+    this.temp  = overrideTemp  || (Math.random()*55+32).toFixed(1);
+    this.ttl   = 14000+Math.random()*18000;
+    this.born  = Date.now()-Math.random()*10000;
     this.alpha = 0;
-    this.pulseT = Math.random() * Math.PI * 2;
+    this.pulseT= Math.random()*Math.PI*2;
 
-    const col    = RISK_COLOR[this.risk];
-    const baseR  = this.risk === 'HIGH' ? 0.022 : this.risk === 'MEDIUM' ? 0.018 : 0.014;
-    this.baseR   = baseR;
+    const col=RISK_COLOR[this.risk];
+    const baseR=this.risk==='HIGH'?.022:this.risk==='MEDIUM'?.018:.014;
+    this.baseR=baseR;
 
-    /* Dot geometry */
-    const dotGeo = new THREE.SphereGeometry(baseR, 10, 10);
-    const dotMat = new THREE.MeshBasicMaterial({ color: col, transparent: true });
-    this.dot     = new THREE.Mesh(dotGeo, dotMat);
+    const dotGeo=new THREE.SphereGeometry(baseR,10,10);
+    const dotMat=new THREE.MeshBasicMaterial({color:col,transparent:true});
+    this.dot=new THREE.Mesh(dotGeo,dotMat);
 
-    /* Glow sprite */
-    const glowTex = buildGlowTex(col);
-    const glowMat = new THREE.SpriteMaterial({
-      map: glowTex, color: col,
-      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-    });
-    this.glow = new THREE.Sprite(glowMat);
-    const gs  = baseR * (this.risk === 'HIGH' ? 18 : this.risk === 'MEDIUM' ? 14 : 10);
-    this.glow.scale.set(gs, gs, gs);
+    const glowMat=new THREE.SpriteMaterial({map:buildGlowTex(col),color:col,
+      transparent:true,blending:THREE.AdditiveBlending,depthWrite:false});
+    this.glow=new THREE.Sprite(glowMat);
+    const gs=baseR*(this.risk==='HIGH'?18:this.risk==='MEDIUM'?14:10);
+    this.glow.scale.set(gs,gs,gs);
 
-    /* Pulse ring (HIGH only) */
-    this.ring = null;
-    if (this.risk === 'HIGH') {
-      const ringGeo = new THREE.RingGeometry(baseR*1.5, baseR*2.5, 24);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: col, transparent: true, side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending, depthWrite: false,
-      });
-      this.ring = new THREE.Mesh(ringGeo, ringMat);
+    this.ring=null;
+    if(this.risk==='HIGH'){
+      const rm=new THREE.MeshBasicMaterial({color:col,transparent:true,
+        side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false});
+      this.ring=new THREE.Mesh(new THREE.RingGeometry(baseR*1.5,baseR*2.5,24),rm);
     }
 
-    this.group = new THREE.Group();
-    this.group.add(this.dot);
-    this.group.add(this.glow);
-    if (this.ring) this.group.add(this.ring);
-
+    this.group=new THREE.Group();
+    this.group.add(this.dot,this.glow);
+    if(this.ring)this.group.add(this.ring);
     this._place();
     earthMesh.add(this.group);
   }
 
-  _place() {
-    const pos = latLngTo3D(this.lat, this.lng, RADIUS + this.baseR);
+  _place(){
+    const pos=latLngTo3D(this.lat,this.lng,RADIUS+this.baseR);
     this.group.position.copy(pos);
     this.group.lookAt(new THREE.Vector3(0,0,0));
     this.group.rotateX(Math.PI);
   }
 
-  update(now, dt) {
-    const age = now - this.born;
-    if (age > this.ttl) return false;
-    const fadeIn  = 900,  fadeOut = 1400;
-    if      (age < fadeIn)          this.alpha = age / fadeIn;
-    else if (age > this.ttl-fadeOut) this.alpha = (this.ttl - age) / fadeOut;
-    else                             this.alpha = 1;
-    this.pulseT += dt * 0.003;
-
-    const pulseMag = this.risk === 'HIGH' ? 0.35 : this.risk === 'MEDIUM' ? 0.22 : 0.12;
-    const pScale = 1 + Math.sin(this.pulseT) * pulseMag;
-    const s = pScale * this.baseR;
-    this.dot.scale.set(pScale, pScale, pScale);
-    this.dot.material.opacity = this.alpha * 0.9;
-    this.glow.material.opacity = this.alpha * (0.55 + Math.sin(this.pulseT) * 0.15);
-
-    if (this.ring) {
-      const ringPulse = 1 + Math.sin(this.pulseT * 0.8) * 0.6;
-      this.ring.scale.set(ringPulse, ringPulse, 1);
-      this.ring.material.opacity = this.alpha * 0.45 * (1 - Math.abs(Math.sin(this.pulseT*0.8)));
+  update(now,dt){
+    const age=now-this.born;
+    if(age>this.ttl)return false;
+    const fi=900,fo=1400;
+    if(age<fi)this.alpha=age/fi;
+    else if(age>this.ttl-fo)this.alpha=(this.ttl-age)/fo;
+    else this.alpha=1;
+    this.pulseT+=dt*.003;
+    const pm=this.risk==='HIGH'?.35:this.risk==='MEDIUM'?.22:.12;
+    const ps=1+Math.sin(this.pulseT)*pm;
+    this.dot.scale.set(ps,ps,ps);
+    this.dot.material.opacity=this.alpha*.9;
+    this.glow.material.opacity=this.alpha*(.55+Math.sin(this.pulseT)*.15);
+    if(this.ring){
+      const rp=1+Math.sin(this.pulseT*.8)*.6;
+      this.ring.scale.set(rp,rp,1);
+      this.ring.material.opacity=this.alpha*.45*(1-Math.abs(Math.sin(this.pulseT*.8)));
     }
     return true;
   }
 
-  dispose() {
+  dispose(){
     earthMesh.remove(this.group);
-    this.dot.geometry.dispose();
-    this.dot.material.dispose();
-    this.glow.material.map.dispose();
-    this.glow.material.dispose();
-    if (this.ring) {
-      this.ring.geometry.dispose();
-      this.ring.material.dispose();
-    }
+    this.dot.geometry.dispose();this.dot.material.dispose();
+    this.glow.material.map.dispose();this.glow.material.dispose();
+    if(this.ring){this.ring.geometry.dispose();this.ring.material.dispose();}
   }
 }
 
-function buildGlowTex(color) {
-  const sz = 64;
-  const tc = document.createElement('canvas'); tc.width = sz; tc.height = sz;
-  const tx = tc.getContext('2d');
-  const g  = tx.createRadialGradient(sz/2,sz/2,0, sz/2,sz/2,sz/2);
-  const hex = '#' + color.toString(16).padStart(6,'0');
-  g.addColorStop(0,   hex + 'ff');
-  g.addColorStop(0.3, hex + 'aa');
-  g.addColorStop(0.6, hex + '44');
-  g.addColorStop(1,   hex + '00');
-  tx.fillStyle = g;
-  tx.fillRect(0,0,sz,sz);
-  return new THREE.CanvasTexture(tc);
+/* ── State ── */
+let EVENTS=[];
+let MODE='world';       // 'world' | 'country'
+let ACTIVE_COUNTRY=null;
+const DENSITY=Math.min(Math.max(CFG.eventDensity,20),200);
+
+function riskForRandom(profile){
+  const r=Math.random();
+  if(profile==='HIGH')  return r<.45?'HIGH':r<.72?'MEDIUM':'LOW';
+  if(profile==='MEDIUM')return r<.28?'HIGH':r<.60?'MEDIUM':'LOW';
+  return r<.12?'HIGH':r<.40?'MEDIUM':'LOW';
 }
 
-/* Seed initial events */
-let EVENTS = [];
-const DENSITY = Math.min(Math.max(CFG.eventDensity, 20), 200);
-for (let i = 0; i < DENSITY; i++) EVENTS.push(new RiskEvent());
+/* seed world events */
+function seedWorldEvents(){
+  EVENTS.forEach(e=>e.dispose());
+  EVENTS=[];
+  for(let i=0;i<DENSITY;i++){
+    const c=WORLD_CENTERS[Math.floor(Math.random()*WORLD_CENTERS.length)];
+    const lat=c[0]+(Math.random()-.5)*7,lng=c[1]+(Math.random()-.5)*7;
+    const r=Math.random();
+    const risk=r<.32?'HIGH':r<.65?'MEDIUM':'LOW';
+    EVENTS.push(new RiskEvent(lat,lng,risk));
+  }
+}
 
-/* ══ ORBIT CONTROLS (manual impl, no dep) ════════════ */
-const drag = { active:false, lastX:0, lastY:0, velX:0, velY:0 };
-const earthRot = { x: 0.25, y: 0 };
+/* seed country events — dense dots on real hotspot coords */
+function seedCountryEvents(country){
+  EVENTS.forEach(e=>e.dispose());
+  EVENTS=[];
+  const count=Math.round(DENSITY*1.4);
+  for(let i=0;i<count;i++){
+    const hs=country.hotspots[Math.floor(Math.random()*country.hotspots.length)];
+    const jlat=(Math.random()-.5)*0.35, jlng=(Math.random()-.5)*0.35;
+    const lat=hs[0]+jlat, lng=hs[1]+jlng;
+    const risk=riskForRandom(country.riskProfile);
+    EVENTS.push(new RiskEvent(lat,lng,risk));
+  }
+}
 
-canvas.addEventListener('mousedown', e => {
-  drag.active = true;
-  drag.lastX = e.clientX; drag.lastY = e.clientY;
-  drag.velX = drag.velY = 0;
+seedWorldEvents();
+
+/* ══ CAMERA ANIMATION ══════════════════════════════════ */
+const cam={
+  targetZ:2.6, currentZ:2.6,
+  targetRotX:0.25, targetRotY:0,
+  lerpSpeed:0.06,
+};
+const earthRot={x:.25,y:0};
+const drag={active:false,lastX:0,lastY:0,velX:0,velY:0};
+
+/* Fly to a country: tilt globe so country is centered */
+function flyToCountry(country){
+  /* We rotate the earth so country centre faces camera */
+  /* earthRot.y controls spin, earthRot.x controls tilt */
+  const targetY = -( (country.lng + 180) * Math.PI / 180 - Math.PI );
+  const targetX = -( country.lat * Math.PI / 180 );
+  cam.targetRotY = targetY;
+  cam.targetRotX = Math.max(-Math.PI*.4, Math.min(Math.PI*.4, targetX));
+  /* zoom to show the country bbox */
+  const latDeg = country.latSpan || 20;
+  const lngDeg = country.lngSpan || 20;
+  const span   = Math.max(latDeg, lngDeg);
+  /* empirical: span 50° → z~1.8, span 10° → z~1.2, span 90° → z~2.5 */
+  cam.targetZ  = Math.max(1.3, Math.min(3.0, 0.9 + span * 0.025));
+}
+
+function flyToWorld(){
+  cam.targetZ  = 2.6;
+  cam.targetRotX = 0.25;
+  cam.targetRotY = earthRot.y; // stay where user left it
+}
+
+/* ══ DRAG / ZOOM ══════════════════════════════════════ */
+const autoRotSpeed = CFG.rotateSpeed||.0015;
+
+canvas.addEventListener('mousedown',e=>{
+  drag.active=true;drag.lastX=e.clientX;drag.lastY=e.clientY;drag.velX=drag.velY=0;
 });
-window.addEventListener('mouseup', () => { drag.active = false; });
-window.addEventListener('mousemove', e => {
-  if (!drag.active) return;
-  drag.velY = (e.clientX - drag.lastX) * 0.007;
-  drag.velX = (e.clientY - drag.lastY) * 0.007;
-  earthRot.y += drag.velY;
-  earthRot.x  = Math.max(-Math.PI*0.45, Math.min(Math.PI*0.45, earthRot.x + drag.velX));
-  drag.lastX = e.clientX; drag.lastY = e.clientY;
+window.addEventListener('mouseup',()=>{drag.active=false;});
+window.addEventListener('mousemove',e=>{
+  if(!drag.active)return;
+  drag.velY=(e.clientX-drag.lastX)*.007;
+  drag.velX=(e.clientY-drag.lastY)*.007;
+  cam.targetRotY+=drag.velY; cam.targetRotX+=drag.velX;
+  cam.targetRotX=Math.max(-Math.PI*.45,Math.min(Math.PI*.45,cam.targetRotX));
+  drag.lastX=e.clientX;drag.lastY=e.clientY;
 });
-
-// Touch
-canvas.addEventListener('touchstart', e => {
-  drag.active = true;
-  drag.lastX = e.touches[0].clientX;
-  drag.lastY = e.touches[0].clientY;
-  drag.velX = drag.velY = 0;
-}, {passive:true});
-window.addEventListener('touchend', () => { drag.active = false; }, {passive:true});
-window.addEventListener('touchmove', e => {
-  if (!drag.active) return;
-  drag.velY = (e.touches[0].clientX - drag.lastX) * 0.007;
-  drag.velX = (e.touches[0].clientY - drag.lastY) * 0.007;
-  earthRot.y += drag.velY;
-  earthRot.x  = Math.max(-Math.PI*0.45, Math.min(Math.PI*0.45, earthRot.x + drag.velX));
-  drag.lastX = e.touches[0].clientX;
-  drag.lastY = e.touches[0].clientY;
-}, {passive:true});
-
-// Zoom
-let cameraZ = 2.6;
-canvas.addEventListener('wheel', e => {
+canvas.addEventListener('touchstart',e=>{
+  drag.active=true;drag.lastX=e.touches[0].clientX;drag.lastY=e.touches[0].clientY;drag.velX=drag.velY=0;
+},{passive:true});
+window.addEventListener('touchend',()=>{drag.active=false;},{passive:true});
+window.addEventListener('touchmove',e=>{
+  if(!drag.active)return;
+  drag.velY=(e.touches[0].clientX-drag.lastX)*.007;
+  drag.velX=(e.touches[0].clientY-drag.lastY)*.007;
+  cam.targetRotY+=drag.velY;cam.targetRotX+=drag.velX;
+  cam.targetRotX=Math.max(-Math.PI*.45,Math.min(Math.PI*.45,cam.targetRotX));
+  drag.lastX=e.touches[0].clientX;drag.lastY=e.touches[0].clientY;
+},{passive:true});
+canvas.addEventListener('wheel',e=>{
   e.preventDefault();
-  cameraZ *= e.deltaY < 0 ? 0.92 : 1.09;
-  cameraZ = Math.max(1.3, Math.min(5.5, cameraZ));
-}, {passive:false});
+  cam.targetZ*=e.deltaY<0?.91:1.1;
+  cam.targetZ=Math.max(1.2,Math.min(5.0,cam.targetZ));
+},{passive:false});
 
-/* ══ RAYCASTER for hover ══════════════════════════════ */
-const raycaster = new THREE.Raycaster();
-const mouse     = new THREE.Vector2(-9,-9);
-const tooltip   = document.getElementById('tooltip');
-let hovered     = null;
+/* ══ RAYCASTER ════════════════════════════════════════ */
+const raycaster=new THREE.Raycaster();
+const mouse=new THREE.Vector2(-9,-9);
+const tooltip=document.getElementById('tooltip');
+let hovered=null;
 
-window.addEventListener('mousemove', e => {
-  mouse.x =  (e.clientX / W()) * 2 - 1;
-  mouse.y = -(e.clientY / H()) * 2 + 1;
-  // Position tooltip near cursor
-  tooltip.style.left = (e.clientX + 18) + 'px';
-  tooltip.style.top  = (e.clientY - 8)  + 'px';
+window.addEventListener('mousemove',e=>{
+  mouse.x=(e.clientX/W())*2-1; mouse.y=-(e.clientY/H())*2+1;
+  tooltip.style.left=(e.clientX+18)+'px'; tooltip.style.top=(e.clientY-8)+'px';
 });
-window.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; hovered = null; });
+window.addEventListener('mouseleave',()=>{tooltip.style.display='none';hovered=null;});
 
-function checkHover() {
-  raycaster.setFromCamera(mouse, camera);
-  let closest = null, closestD = Infinity;
-  for (const ev of EVENTS) {
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObject(ev.dot);
-    if (hits.length > 0 && hits[0].distance < closestD) {
-      closestD = hits[0].distance;
-      closest  = ev;
-    }
+function checkHover(){
+  raycaster.setFromCamera(mouse,camera);
+  let closest=null,cd=Infinity;
+  for(const ev of EVENTS){
+    const hits=raycaster.intersectObject(ev.dot);
+    if(hits.length>0&&hits[0].distance<cd){cd=hits[0].distance;closest=ev;}
   }
-  if (closest !== hovered) {
-    hovered = closest;
-    if (hovered) {
-      const col = RISK_HEX[hovered.risk];
-      document.getElementById('tt-risk').textContent  = `${hovered.risk} RISK`;
-      document.getElementById('tt-risk').style.color  = col;
-      document.getElementById('tt-coord').textContent =
-        `${hovered.lat.toFixed(2)}°, ${hovered.lng.toFixed(2)}°`;
-      document.getElementById('tt-extra').innerHTML   =
-        `🌡 ${hovered.temp}°F &nbsp; 💨 ${hovered.wind} mph &nbsp; 👁 ${hovered.visib} mi`;
-      tooltip.style.display = 'block';
-    } else {
-      tooltip.style.display = 'none';
+  if(closest!==hovered){
+    hovered=closest;
+    if(hovered){
+      const col=RISK_HEX[hovered.risk];
+      document.getElementById('tt-risk').textContent=`${hovered.risk} RISK`;
+      document.getElementById('tt-risk').style.color=col;
+      document.getElementById('tt-coord').textContent=`${hovered.lat.toFixed(2)}°, ${hovered.lng.toFixed(2)}°`;
+      document.getElementById('tt-extra').innerHTML=`🌡 ${hovered.temp}°F &nbsp; 💨 ${hovered.wind} mph &nbsp; 👁 ${hovered.visib} mi`;
+      tooltip.style.display='block';
+    }else{
+      tooltip.style.display='none';
     }
   }
 }
 
-/* ══ HUD UPDATES ══════════════════════════════════════ */
-function updateHUD(now) {
-  const high = EVENTS.filter(e=>e.risk==='HIGH').length;
-  const med  = EVENTS.filter(e=>e.risk==='MEDIUM').length;
-  const low  = EVENTS.filter(e=>e.risk==='LOW').length;
-  document.getElementById('s-active').textContent = EVENTS.length;
-  document.getElementById('s-high').textContent   = high;
-  document.getElementById('s-med').textContent    = med;
-  document.getElementById('s-low').textContent    = low;
-  document.getElementById('lc-low').textContent   = low;
-  document.getElementById('lc-med').textContent   = med;
-  document.getElementById('lc-high').textContent  = high;
+/* ══ COUNTRY PANEL ════════════════════════════════════ */
+const uniqueCountries = COUNTRIES.filter((c,i,a)=>a.findIndex(x=>x.name===c.name)===i);
+
+function buildCountryList(filter=''){
+  const list = document.getElementById('country-list');
+  list.innerHTML='';
+  const q=filter.toLowerCase();
+  uniqueCountries
+    .filter(c=>c.name.toLowerCase().includes(q))
+    .forEach(c=>{
+      const div=document.createElement('div');
+      div.className='c-item'+(ACTIVE_COUNTRY&&ACTIVE_COUNTRY.name===c.name?' active':'');
+      const badgeClass=c.riskProfile==='HIGH'?'crb-high':c.riskProfile==='MEDIUM'?'crb-med':'crb-low';
+      div.innerHTML=`<span class="c-flag">${c.flag}</span>
+        <span class="c-name">${c.name}</span>
+        <span class="c-risk-badge ${badgeClass}">${c.riskProfile}</span>`;
+      div.addEventListener('click',()=>selectCountry(c));
+      list.appendChild(div);
+    });
 }
 
-setInterval(() => {
-  document.getElementById('s-rate').textContent = (1.5 + Math.random()*3.5).toFixed(1) + ' /s';
-}, 2200);
+document.getElementById('country-search').addEventListener('input',e=>{
+  buildCountryList(e.target.value);
+});
+buildCountryList();
 
-function refreshTicker() {
-  const items = EVENTS.filter(e=>e.risk!=='LOW').slice(0,22)
-    .map(e => {
-      const col = RISK_HEX[e.risk];
-      return `<span class="t-item">
-        <span class="t-dot" style="background:${col};box-shadow:0 0 5px ${col}"></span>
-        ${e.risk} — ${e.lat.toFixed(2)}°N ${Math.abs(e.lng).toFixed(2)}°${e.lng>0?'E':'W'}
-        &nbsp;|&nbsp; 🌡${e.temp}°F 💨${e.wind}mph
-      </span>`;
-    }).join('');
-  document.getElementById('ticker-inner').innerHTML = items || '🟢 All clear — monitoring…';
+function selectCountry(country){
+  ACTIVE_COUNTRY=country;
+  MODE='country';
+
+  /* Fly + seed */
+  flyToCountry(country);
+  seedCountryEvents(country);
+
+  /* UI */
+  buildCountryList(document.getElementById('country-search').value);
+  document.getElementById('country-breadcrumb').style.display='flex';
+  document.getElementById('cb-name').textContent=country.flag+' '+country.name;
+
+  const card=document.getElementById('country-card');
+  card.style.display='block';
+  document.getElementById('cc-name').textContent=country.flag+' '+country.name;
+
+  /* hide controls hint */
+  document.getElementById('controls-hint').style.display='none';
+
+  updateCountryCard();
 }
-setInterval(refreshTicker, 3500);
+
+function updateCountryCard(){
+  if(!ACTIVE_COUNTRY)return;
+  const high=EVENTS.filter(e=>e.risk==='HIGH').length;
+  const med =EVENTS.filter(e=>e.risk==='MEDIUM').length;
+  const low =EVENTS.filter(e=>e.risk==='LOW').length;
+  const tot =EVENTS.length;
+  document.getElementById('cc-total').textContent=tot;
+  document.getElementById('cc-high').textContent=high;
+  document.getElementById('cc-med').textContent=med;
+  document.getElementById('cc-low').textContent=low;
+  const ph=tot?high/tot*100:0, pm=tot?med/tot*100:0, pl=tot?low/tot*100:0;
+  document.getElementById('cc-seg-high').style.width=ph+'%';
+  document.getElementById('cc-seg-med').style.width=pm+'%';
+  document.getElementById('cc-seg-low').style.width=pl+'%';
+}
+
+/* Back button */
+document.getElementById('btn-back').addEventListener('click',()=>{
+  ACTIVE_COUNTRY=null;
+  MODE='world';
+  flyToWorld();
+  seedWorldEvents();
+  buildCountryList(document.getElementById('country-search').value);
+  document.getElementById('country-breadcrumb').style.display='none';
+  document.getElementById('country-card').style.display='none';
+  document.getElementById('controls-hint').style.display='block';
+});
+
+/* ══ HUD ═════════════════════════════════════════════ */
+function updateHUD(){
+  const h=EVENTS.filter(e=>e.risk==='HIGH').length;
+  const m=EVENTS.filter(e=>e.risk==='MEDIUM').length;
+  const l=EVENTS.filter(e=>e.risk==='LOW').length;
+  document.getElementById('s-active').textContent=EVENTS.length;
+  document.getElementById('s-high').textContent=h;
+  document.getElementById('s-med').textContent=m;
+  document.getElementById('s-low').textContent=l;
+  document.getElementById('lc-low').textContent=l;
+  document.getElementById('lc-med').textContent=m;
+  document.getElementById('lc-high').textContent=h;
+}
+setInterval(()=>{document.getElementById('s-rate').textContent=(1.5+Math.random()*3.5).toFixed(1)+' /s';},2200);
+
+function refreshTicker(){
+  const items=EVENTS.filter(e=>e.risk!=='LOW').slice(0,22)
+    .map(e=>{const col=RISK_HEX[e.risk];
+      return `<span class="t-item"><span class="t-dot" style="background:${col};box-shadow:0 0 5px ${col}"></span>
+      ${e.risk} — ${e.lat.toFixed(2)}°N ${Math.abs(e.lng).toFixed(2)}°${e.lng>0?'E':'W'}
+      &nbsp;|&nbsp; 🌡${e.temp}°F 💨${e.wind}mph</span>`;}).join('');
+  document.getElementById('ticker-inner').innerHTML=items||'🟢 All clear — monitoring…';
+}
+setInterval(refreshTicker,3500);
 refreshTicker();
 
 /* ══ RENDER LOOP ══════════════════════════════════════ */
-let lastFrame = performance.now();
-const autoRotSpeed = CFG.rotateSpeed || 0.0015;
+let lastFrame=performance.now();
+let ccTimer=0;
 
-function animate(now) {
+function animate(now){
   requestAnimationFrame(animate);
-  const dt = Math.min(now - lastFrame, 50);
-  lastFrame = now;
+  const dt=Math.min(now-lastFrame,50);
+  lastFrame=now;
 
-  // Auto-rotate (momentum)
-  if (!drag.active) {
-    drag.velX *= 0.90;
-    drag.velY *= 0.90;
-    earthRot.y += autoRotSpeed + drag.velY;
-    earthRot.x  = Math.max(-Math.PI*0.45, Math.min(Math.PI*0.45, earthRot.x + drag.velX));
+  /* momentum + auto-rotate (world mode only) */
+  if(!drag.active){
+    drag.velX*=.88;drag.velY*=.88;
+    if(MODE==='world')cam.targetRotY+=autoRotSpeed+drag.velY;
+    cam.targetRotX+=drag.velX;
+    cam.targetRotX=Math.max(-Math.PI*.45,Math.min(Math.PI*.45,cam.targetRotX));
   }
 
-  earthMesh.rotation.x = earthRot.x;
-  earthMesh.rotation.y = earthRot.y;
+  /* lerp rotation & zoom */
+  earthRot.x+=(cam.targetRotX-earthRot.x)*cam.lerpSpeed;
+  earthRot.y+=(cam.targetRotY-earthRot.y)*cam.lerpSpeed;
+  cam.currentZ+=(cam.targetZ-cam.currentZ)*cam.lerpSpeed;
+
+  earthMesh.rotation.x=earthRot.x;
+  earthMesh.rotation.y=earthRot.y;
   atm.rotation.copy(earthMesh.rotation);
 
-  // Smooth camera zoom
-  camera.position.z += (cameraZ - camera.position.z) * 0.08;
+  camera.position.z=cam.currentZ;
   camera.updateProjectionMatrix();
 
-  // Event lifecycle
-  EVENTS = EVENTS.filter(ev => {
-    const alive = ev.update(now, dt);
-    if (!alive) { ev.dispose(); return false; }
+  /* event lifecycle */
+  EVENTS=EVENTS.filter(ev=>{
+    const alive=ev.update(now,dt);
+    if(!alive){ev.dispose();return false;}
     return true;
   });
 
-  // Filter by config
-  EVENTS.forEach(ev => {
-    const show = (ev.risk==='HIGH' && CFG.showHigh) ||
-                 (ev.risk==='MEDIUM' && CFG.showMedium) ||
-                 (ev.risk==='LOW' && CFG.showLow);
-    ev.group.visible = show;
+  /* visibility filter */
+  EVENTS.forEach(ev=>{
+    ev.group.visible=(ev.risk==='HIGH'&&CFG.showHigh)||(ev.risk==='MEDIUM'&&CFG.showMedium)||(ev.risk==='LOW'&&CFG.showLow);
   });
 
-  // Spawn
-  const target = Math.round(DENSITY * 0.85);
-  if (EVENTS.length < target && Math.random() < 0.05) EVENTS.push(new RiskEvent());
+  /* spawn */
+  if(MODE==='world'){
+    const t=Math.round(DENSITY*.85);
+    if(EVENTS.length<t&&Math.random()<.05){
+      const c=WORLD_CENTERS[Math.floor(Math.random()*WORLD_CENTERS.length)];
+      const r=Math.random();
+      EVENTS.push(new RiskEvent(c[0]+(Math.random()-.5)*7,c[1]+(Math.random()-.5)*7,
+        r<.32?'HIGH':r<.65?'MEDIUM':'LOW'));
+    }
+  } else if(ACTIVE_COUNTRY){
+    const t=Math.round(DENSITY*1.2);
+    if(EVENTS.length<t&&Math.random()<.06){
+      const hs=ACTIVE_COUNTRY.hotspots[Math.floor(Math.random()*ACTIVE_COUNTRY.hotspots.length)];
+      EVENTS.push(new RiskEvent(hs[0]+(Math.random()-.5)*.35,hs[1]+(Math.random()-.5)*.35,
+        riskForRandom(ACTIVE_COUNTRY.riskProfile)));
+    }
+    ccTimer+=dt;
+    if(ccTimer>1500){ccTimer=0;updateCountryCard();}
+  }
 
   checkHover();
-  updateHUD(now);
-  renderer.render(scene, camera);
+  updateHUD();
+  renderer.render(scene,camera);
 }
 
-/* ── Dismiss loading screen ── */
-window.addEventListener('load', () => {
-  setTimeout(() => {
-    const l = document.getElementById('loading');
-    l.classList.add('fade-out');
-    setTimeout(() => l.remove(), 600);
-  }, 800);
+window.addEventListener('load',()=>{
+  setTimeout(()=>{const l=document.getElementById('loading');l.classList.add('fade-out');setTimeout(()=>l.remove(),600);},700);
 });
 
 requestAnimationFrame(animate);
