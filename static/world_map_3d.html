@@ -284,13 +284,13 @@ const RL=1; // earth radius
 
 /* ── Earth texture: ocean + land + country borders + city dots ── */
 function buildEarthTex(){
-  const S=2048,H2=S/2;
+  const S=4096,H2=S/2;  // 4K texture for crisp borders
   const tc=document.createElement('canvas');tc.width=S;tc.height=H2;
   const tx=tc.getContext('2d');
 
-  // Ocean
+  // Deep ocean gradient
   const og=tx.createLinearGradient(0,0,0,H2);
-  og.addColorStop(0,'#08192e');og.addColorStop(.5,'#0a2040');og.addColorStop(1,'#061528');
+  og.addColorStop(0,'#061420');og.addColorStop(.4,'#09203a');og.addColorStop(1,'#050e18');
   tx.fillStyle=og;tx.fillRect(0,0,S,H2);
 
   // Helpers: lon/lat → pixel
@@ -340,30 +340,40 @@ function buildEarthTex(){
     // Iceland
     [[64,-14],[64,-22],[66,-24],[66,-20],[63,-14],[64,-14]],
   ];
-  LAND.forEach(pts=>drawPoly(pts,'#1b4033',null));
+  // Base land — dark forest green
+  LAND.forEach(pts=>drawPoly(pts,'#16382a',null));
+  // Subtle texture: lighter inner for visual depth
+  LAND.forEach(pts=>drawPoly(pts,'rgba(30,80,50,.28)',null));
 
-  // Country fills with subtle colour variation
+  // Country fills — strong enough to see on globe
   CDB.forEach(c=>{
     if(!c.bounds||c.bounds.length<3)return;
-    const colBase=c.risk==='HIGH'?'rgba(60,24,28,.55)':c.risk==='MEDIUM'?'rgba(55,40,10,.45)':'rgba(15,45,25,.40)';
+    const colBase=c.risk==='HIGH'?'rgba(140,20,40,.72)':c.risk==='MEDIUM'?'rgba(120,80,0,.62)':'rgba(10,90,40,.55)';
     drawPoly(c.bounds,colBase,null);
+    // Second pass: lighter inner glow
+    const colGlow=c.risk==='HIGH'?'rgba(255,60,90,.18)':c.risk==='MEDIUM'?'rgba(255,180,0,.15)':'rgba(40,220,100,.14)';
+    drawPoly(c.bounds,colGlow,null);
   });
 
-  // Country borders — bright lines so boundaries are visible
+  // Country borders — thick bright lines clearly visible on globe
   CDB.forEach(c=>{
     if(!c.bounds||c.bounds.length<3)return;
-    const bc=c.risk==='HIGH'?'rgba(255,80,110,.65)':c.risk==='MEDIUM'?'rgba(255,180,40,.55)':'rgba(50,220,130,.50)';
-    drawPoly(c.bounds,null,bc,1.6);
+    const bc=c.risk==='HIGH'?'rgba(255,90,120,.95)':c.risk==='MEDIUM'?'rgba(255,190,50,.9)':'rgba(60,240,140,.88)';
+    // Thick glow line first
+    drawPoly(c.bounds,null,'rgba(255,255,255,.12)',5);
+    // Sharp color line on top
+    drawPoly(c.bounds,null,bc,2.2);
   });
 
-  // Ocean grid
-  tx.globalAlpha=.13;
+  // Lat/lng grid
+  tx.globalAlpha=.22;
   for(let la=-75;la<=75;la+=15){
     tx.beginPath();const[,y0]=px(0,la);tx.moveTo(0,y0);tx.lineTo(S,y0);
-    tx.strokeStyle=la===0?'rgba(80,180,255,.5)':'rgba(60,140,200,.3)';tx.lineWidth=la===0?1.2:.6;tx.stroke();}
+    tx.strokeStyle=la===0?'rgba(100,200,255,.85)':'rgba(60,140,200,.5)';
+    tx.lineWidth=la===0?2:.8;tx.stroke();}
   for(let lo=-165;lo<=180;lo+=15){
     tx.beginPath();tx.moveTo(...px(lo,-90));tx.lineTo(...px(lo,90));
-    tx.strokeStyle='rgba(60,140,200,.25)';tx.lineWidth=.6;tx.stroke();}
+    tx.strokeStyle='rgba(60,140,200,.4)';tx.lineWidth=.8;tx.stroke();}
   tx.globalAlpha=1;
 
   // Polar ice
@@ -372,14 +382,19 @@ function buildEarthTex(){
     g.addColorStop(0,'rgba(210,235,255,.9)');g.addColorStop(1,'rgba(180,220,255,0)');
     tx.fillStyle=g;tx.fillRect(0,0,S,H2);});
 
-  // City dots on texture
+  // City dots — bright warm dots on texture
   CDB.forEach(c=>{
-    c.cities.slice(0,6).forEach(city=>{
+    c.cities.slice(0,8).forEach(city=>{
       const[cx,cy]=px(city.lng,city.lat);
-      tx.beginPath();tx.arc(cx,cy,2.2,0,6.28);
-      tx.fillStyle='rgba(255,240,180,.85)';tx.fill();
-      tx.beginPath();tx.arc(cx,cy,4.5,0,6.28);
-      tx.fillStyle='rgba(255,240,180,.22)';tx.fill();});});
+      // Outer glow
+      tx.beginPath();tx.arc(cx,cy,7,0,6.28);
+      tx.fillStyle='rgba(255,230,120,.2)';tx.fill();
+      // Main dot
+      tx.beginPath();tx.arc(cx,cy,3.5,0,6.28);
+      tx.fillStyle='rgba(255,240,160,.92)';tx.fill();
+      // Bright center
+      tx.beginPath();tx.arc(cx,cy,1.5,0,6.28);
+      tx.fillStyle='rgba(255,255,220,1)';tx.fill();})});
 
   return new THREE.CanvasTexture(tc);
 }
