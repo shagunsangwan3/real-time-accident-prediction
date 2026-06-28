@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>🗺 Risk Map</title>
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet"/>
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body,#map{width:100%;height:100%;overflow:hidden;background:#060d1a;font-family:'Segoe UI',system-ui,sans-serif}
+/* Top bar */
+#bar{position:fixed;top:0;left:0;right:0;height:52px;z-index:30;background:rgba(0,5,16,.97);
+  border-bottom:1px solid rgba(80,180,255,.18);display:flex;align-items:center;padding:0 16px;gap:10px}
+#bar h1{font-size:.9rem;font-weight:700;color:#7cc8f0;letter-spacing:.05em;white-space:nowrap}
+/* Search */
+#srch{display:flex;gap:6px;align-items:center;margin-left:auto}
+#sinput{background:rgba(255,255,255,.06);border:1px solid rgba(80,180,255,.28);
+  border-radius:8px;padding:6px 13px;color:#c8e8ff;font-size:.75rem;width:220px;outline:none}
+#sinput:focus{border-color:rgba(80,180,255,.6);background:rgba(255,255,255,.1)}
+#sinput::placeholder{color:rgba(100,165,210,.45)}
+.sbtn{background:rgba(80,180,255,.15);border:1px solid rgba(80,180,255,.35);color:#8ac8e8;
+  border-radius:7px;padding:6px 12px;font-size:.72rem;cursor:pointer;white-space:nowrap;transition:all .18s}
+.sbtn:hover{background:rgba(80,180,255,.28);color:#d0f0ff}
+.sbtn.act{background:rgba(80,180,255,.32);border-color:rgba(80,180,255,.7);color:#e0f4ff}
+.sbtn.g{background:rgba(60,200,120,.14);border-color:rgba(60,200,120,.36);color:#50d898}
+.sbtn.g:hover{background:rgba(60,200,120,.26)}
+.sbtn.r{background:rgba(255,60,80,.1);border-color:rgba(255,60,80,.3);color:#ff7090}
+.sbtn.r:hover{background:rgba(255,60,80,.22)}
+/* Map */
+#map{position:fixed;top:52px;left:0;right:0;bottom:0}
+/* Right panel */
+#panel{position:absolute;top:10px;right:10px;z-index:20;width:260px;display:none;
+  background:rgba(0,6,20,.93);border:1px solid rgba(80,180,255,.22);border-radius:13px;
+  overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+#ph{padding:13px 15px 10px;border-bottom:1px solid rgba(80,180,255,.12)}
+#pbadge{display:inline-block;font-size:.61rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:2px 9px;border-radius:8px;margin-bottom:5px}
+#pname{font-size:.95rem;font-weight:700;color:#c8e8ff;margin-bottom:2px}
+#pcoord{font-size:.67rem;color:#5a8899}
+#pbody{padding:10px 15px}
+.pr{display:flex;justify-content:space-between;margin-bottom:5px;font-size:.73rem}
+.pr:last-child{margin-bottom:0}.pk{color:#5a8899}.pv{color:#b0d8e8;font-weight:600}
+#pbtns{padding:8px 15px 12px;display:flex;gap:7px}
+.pbtn{flex:1;padding:6px 0;border-radius:7px;font-size:.68rem;font-weight:600;cursor:pointer;
+  text-align:center;border:none;transition:all .18s}
+#pb3d{background:rgba(80,180,255,.18);border:1px solid rgba(80,180,255,.38)!important;color:#a8d8f4}
+#pb3d:hover{background:rgba(80,180,255,.3)}
+#pbsat{background:rgba(80,200,140,.13);border:1px solid rgba(80,200,140,.32)!important;color:#50d898}
+#pbsat:hover{background:rgba(80,200,140,.24)}
+/* Legend */
+#leg{position:absolute;bottom:42px;left:10px;z-index:20;
+  background:rgba(0,6,20,.9);border:1px solid rgba(80,180,255,.18);
+  border-radius:11px;padding:10px 14px;min-width:148px}
+#leg h4{font-size:.59rem;letter-spacing:.13em;text-transform:uppercase;color:#4aa0cc;margin-bottom:7px}
+.lrow{display:flex;align-items:center;gap:7px;margin-bottom:5px;font-size:.71rem;color:#88a8b8}
+.lrow:last-child{margin-bottom:0}
+.ldot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.lcount{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+/* Ticker */
+#ticker{position:absolute;bottom:0;left:0;right:0;height:30px;z-index:20;
+  background:rgba(0,4,14,.96);border-top:1px solid rgba(80,180,255,.1);
+  display:flex;align-items:center;overflow:hidden}
+.tlbl{flex-shrink:0;padding:0 10px;font-size:.61rem;letter-spacing:.12em;color:#4aa0cc;
+  text-transform:uppercase;border-right:1px solid rgba(80,180,255,.14);height:100%;display:flex;align-items:center}
+.ttr{flex:1;overflow:hidden}
+.tin{display:flex;gap:46px;white-space:nowrap;font-size:.64rem;color:#7aA8c0;animation:sc 28s linear infinite}
+@keyframes sc{0%{transform:translateX(100%)}100%{transform:translateX(-200%)}}
+.ti{display:flex;align-items:center;gap:5px}
+.tdo{width:5px;height:5px;border-radius:50%}
+/* Popup */
+.maplibregl-popup-content{
+  background:rgba(0,6,22,.95)!important;border:1px solid rgba(80,180,255,.3)!important;
+  border-radius:11px!important;color:#c0ddf0!important;
+  font-family:'Segoe UI',system-ui,sans-serif!important;
+  font-size:.76rem!important;padding:11px 14px!important;min-width:200px!important;
+  box-shadow:0 6px 24px rgba(0,0,0,.7)!important}
+.maplibregl-popup-tip{border-top-color:rgba(0,6,22,.95)!important}
+.maplibregl-popup-close-button{color:#4aa0cc!important;font-size:1rem!important;right:6px!important;top:4px!important}
+.pu-r{font-weight:700;font-size:.86rem;margin-bottom:3px}
+.pu-l{font-size:.68rem;color:#5a8899;margin-bottom:5px}
+.pu-s{font-size:.7rem;color:#9ab8cc;line-height:1.8}
+.pu-b{display:flex;gap:6px;margin-top:8px}
+.pu-b button{flex:1;padding:5px 0;border-radius:7px;font-size:.67rem;font-weight:600;cursor:pointer;border:none;transition:all .18s}
+.pu-bz{background:rgba(80,180,255,.18);border:1px solid rgba(80,180,255,.38)!important;color:#a8d8f4}
+.pu-bs{background:rgba(80,200,140,.13);border:1px solid rgba(80,200,140,.32)!important;color:#50d898}
+/* Loading */
+#mapload{position:fixed;inset:0;top:52px;background:#060d1a;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:50;transition:opacity .5s}
+#mapload.out{opacity:0;pointer-events:none}
+.ring{width:44px;height:44px;border:2px solid rgba(80,180,255,.12);border-top-color:#4aa0cc;
+  border-radius:50%;animation:sp .85s linear infinite;margin-bottom:13px}
+@keyframes sp{to{transform:rotate(360deg)}}
+#mapload p{color:#4aa0cc;font-size:.76rem;letter-spacing:.1em}
+</style>
+</head>
+<body>
+<div id="bar">
+  <h1 id="bartitle">🗺 Risk Map</h1>
+  <div style="display:flex;gap:5px;flex-shrink:0">
+    <button class="sbtn act" id="t-street" onclick="setStyle('street')">Street</button>
+    <button class="sbtn"     id="t-dark"   onclick="setStyle('dark')">Dark</button>
+    <button class="sbtn"     id="t-sat"    onclick="setStyle('satellite')">Satellite</button>
+    <button class="sbtn"     id="t-3d"     onclick="setStyle('3d')">🏙 3D City</button>
+  </div>
+  <div id="srch">
+    <input id="sinput" type="text" placeholder="Search city or location…" onkeydown="if(event.key==='Enter')doSearch()"/>
+    <button class="sbtn g" onclick="doSearch()">Search</button>
+    <button class="sbtn r" onclick="window.close()">✕ Close</button>
+  </div>
+</div>
+
+<div id="map"></div>
+<div id="mapload"><div class="ring"></div><p id="mlp">LOADING MAP…</p></div>
+
+<div id="panel">
+  <div id="ph"><div id="pbadge"></div><div id="pname">—</div><div id="pcoord">—</div></div>
+  <div id="pbody">
+    <div class="pr"><span class="pk">Temperature</span><span class="pv" id="ptemp">—</span></div>
+    <div class="pr"><span class="pk">Wind Speed</span><span class="pv" id="pwind">—</span></div>
+    <div class="pr"><span class="pk">Visibility</span><span class="pv" id="pvis">—</span></div>
+    <div class="pr"><span class="pk">Road Type</span><span class="pv" id="proad">—</span></div>
+    <div class="pr"><span class="pk">Risk Score</span><span class="pv" id="pscore">—</span></div>
+  </div>
+  <div id="pbtns">
+    <button class="pbtn" id="pb3d"  onclick="zoom3D()">🏙 3D City View</button>
+    <button class="pbtn" id="pbsat" onclick="setStyle('satellite')">🛰 Satellite</button>
+  </div>
+</div>
+
+<div id="leg">
+  <h4>Risk Dots</h4>
+  <div class="lrow"><div class="ldot" style="background:#ff3366;box-shadow:0 0 5px #ff3366"></div>High<span class="lcount" style="color:#ff3366" id="lh">—</span></div>
+  <div class="lrow"><div class="ldot" style="background:#ffaa00;box-shadow:0 0 5px #ffaa00"></div>Medium<span class="lcount" style="color:#ffaa00" id="lm">—</span></div>
+  <div class="lrow"><div class="ldot" style="background:#22ff88;box-shadow:0 0 5px #22ff88"></div>Low<span class="lcount" style="color:#22ff88" id="ll">—</span></div>
+  <div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(80,180,255,.14);font-size:.61rem;color:#4aa0cc">Click any dot for details</div>
+</div>
+
+<div id="ticker">
+  <div class="tlbl">Live Feed</div>
+  <div class="ttr"><div class="tin" id="tin">Connecting…</div></div>
+</div>
+
+<script>
+const RCOL={HIGH:'#ff3366',MEDIUM:'#ffaa00',LOW:'#22ff88'};
+const RNAME={HIGH:'🔴 HIGH RISK',MEDIUM:'🟡 MEDIUM RISK',LOW:'🟢 LOW RISK'};
+const ROADS=['Highway','Urban Road','Intersection','Freeway','Rural Road','Bridge','Ring Road','Expressway'];
+function riskFor(p){const r=Math.random();
+  return p==='HIGH'?r<.44?'HIGH':r<.72?'MEDIUM':'LOW':
+         p==='MEDIUM'?r<.22?'HIGH':r<.56?'MEDIUM':'LOW':
+         r<.1?'HIGH':r<.38?'MEDIUM':'LOW';}
+
+// Load country from sessionStorage (set by globe) or use defaults
+let CTY=null;
+try{const s=sessionStorage.getItem('mapCountry');if(s)CTY=JSON.parse(s);}catch(e){}
+if(!CTY)CTY={name:"World",flag:"🌍",lat:20,lng:10,mapZ:2,risk:"MEDIUM",
+  cities:[{n:"New York",lat:40.71,lng:-74.01},{n:"London",lat:51.51,lng:-0.13},{n:"Tokyo",lat:35.69,lng:139.69},{n:"Mumbai",lat:19.08,lng:72.88},{n:"São Paulo",lat:-23.55,lng:-46.63},{n:"Cairo",lat:30.06,lng:31.24},{n:"Lagos",lat:6.52,lng:3.38},{n:"Beijing",lat:39.9,lng:116.4},{n:"Moscow",lat:55.75,lng:37.62},{n:"Jakarta",lat:-6.21,lng:106.85}]};
+
+document.getElementById('bartitle').textContent=`🗺 ${CTY.flag} ${CTY.name} — Risk Map`;
+document.getElementById('mlp').textContent=`LOADING ${CTY.name.toUpperCase()} MAP…`;
+
+// Generate events for this country
+const EVTS=[];
+const cnt=180;
+for(let i=0;i<cnt;i++){
+  const hs=CTY.cities[Math.floor(Math.random()*CTY.cities.length)];
+  const risk=riskFor(CTY.risk);
+  EVTS.push({lat:hs.lat+(Math.random()-.5)*.55,lng:hs.lng+(Math.random()-.5)*.55,
+    risk,city:hs.n,temp:(Math.random()*55+32).toFixed(1),wind:(Math.random()*40).toFixed(1),
+    vis:(Math.random()*9+1).toFixed(1),road:ROADS[Math.floor(Math.random()*ROADS.length)],
+    score:(Math.random()*9+1).toFixed(1)});}
+
+// Update legend counts
+function updateLegend(){
+  document.getElementById('lh').textContent=EVTS.filter(e=>e.risk==='HIGH').length;
+  document.getElementById('lm').textContent=EVTS.filter(e=>e.risk==='MEDIUM').length;
+  document.getElementById('ll').textContent=EVTS.filter(e=>e.risk==='LOW').length;}
+updateLegend();
+
+// Ticker
+function refreshTicker(){
+  const items=EVTS.filter(e=>e.risk!=='LOW').slice(0,20).map(e=>{const col=RCOL[e.risk];
+    return `<span class="ti"><span class="tdo" style="background:${col};box-shadow:0 0 4px ${col}"></span>${e.risk} — ${e.city} · 🌡${e.temp}°F 💨${e.wind}mph 🛣${e.road}</span>`;}).join('');
+  document.getElementById('tin').innerHTML=items||`🟢 Monitoring ${CTY.name}…`;}
+refreshTicker();
+
+// MapLibre styles (free, no API key)
+const STYLES={
+  street: 'https://tiles.openfreemap.org/styles/liberty',
+  dark:   'https://tiles.openfreemap.org/styles/dark',
+  satellite:'https://tiles.openfreemap.org/styles/bright',
+  '3d':   'https://tiles.openfreemap.org/styles/dark',
+};
+let curStyle='street';let lastCenter=null;let lastZoom=null;let lastPitch=null;let lastBearing=null;
+let curLocEvt=null;
+const markers=[];
+
+const MAP=new maplibregl.Map({
+  container:'map',
+  style:STYLES.street,
+  center:[CTY.lng,CTY.lat],
+  zoom:CTY.mapZ||5,
+  pitch:40,bearing:-8,antialias:true,
+  maxZoom:19,minZoom:1,
+});
+
+MAP.addControl(new maplibregl.NavigationControl(),'top-left');
+MAP.addControl(new maplibregl.ScaleControl({unit:'metric'}));
+MAP.addControl(new maplibregl.GeolocateControl({positionOptions:{enableHighAccuracy:true},trackUserLocation:false}));
+MAP.addControl(new maplibregl.FullscreenControl());
+
+MAP.on('load',()=>{
+  add3DBuildings();
+  addMarkers();
+  setTimeout(()=>{document.getElementById('mapload').classList.add('out');},600);
+});
+
+MAP.on('click',e=>{
+  // Bare-map click → show panel for that location
+  const lat=e.lngLat.lat,lng=e.lngLat.lng;
+  const near=findNearest(lat,lng);
+  if(near&&Math.sqrt((near.lat-lat)**2+(near.lng-lng)**2)<0.25)return; // handled by marker
+  showPanel({lat,lng,risk:'MEDIUM',city:coordLabel(lat,lng),
+    temp:(Math.random()*55+32).toFixed(1),wind:(Math.random()*40).toFixed(1),
+    vis:(Math.random()*9+1).toFixed(1),road:ROADS[Math.floor(Math.random()*ROADS.length)],
+    score:(Math.random()*9+1).toFixed(1)});});
+
+function coordLabel(lat,lng){return `${Math.abs(lat).toFixed(2)}°${lat>=0?'N':'S'} ${Math.abs(lng).toFixed(2)}°${lng>=0?'E':'W'}`;}
+
+function add3DBuildings(){
+  try{
+    // Check if source/layer exist
+    if(!MAP.getSource('openmaptiles'))return;
+    if(MAP.getLayer('3d-buildings'))MAP.removeLayer('3d-buildings');
+    MAP.addLayer({id:'3d-buildings',type:'fill-extrusion',
+      source:'openmaptiles','source-layer':'building',minzoom:13,
+      paint:{
+        'fill-extrusion-color':['case',['has','name'],
+          ['interpolate',['linear'],['get','render_height'],0,'#16283f',20,'#1c3250',50,'#20406a',100,'#264880',200,'#2e5090'],
+          '#14223a'],
+        'fill-extrusion-height':['interpolate',['linear'],['zoom'],13,0,13.5,['coalesce',['get','render_height'],3]],
+        'fill-extrusion-base':['interpolate',['linear'],['zoom'],13,0,13.5,['coalesce',['get','render_min_height'],0]],
+        'fill-extrusion-opacity':.85}});
+  }catch(ex){console.log('3D buildings not available at this zoom');}}
+
+// Pulse keyframes
+if(!document.querySelector('#mkf')){const s=document.createElement('style');
+  s.id='mkf';s.textContent='@keyframes mp{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.55);opacity:.5}}';
+  document.head.appendChild(s);}
+
+function addMarkers(){
+  markers.forEach(m=>m.remove());markers.length=0;
+  EVTS.forEach(ev=>{
+    const el=document.createElement('div');
+    const col=RCOL[ev.risk];
+    const sz=ev.risk==='HIGH'?22:ev.risk==='MEDIUM'?16:11;
+    const dur=ev.risk==='HIGH'?'1s':'1.7s';
+    el.style.cssText=`width:${sz}px;height:${sz}px;border-radius:50%;background:${col};cursor:pointer;
+      box-shadow:0 0 ${sz}px ${col},0 0 ${sz*2}px ${col}55;
+      animation:mp ${dur} ease-in-out infinite;`;
+    el.title=`${RNAME[ev.risk]} — ${ev.city}`;
+    el.addEventListener('click',e=>{
+      e.stopPropagation();
+      curLocEvt=ev;
+      showPanel(ev);
+      new maplibregl.Popup({closeButton:true,maxWidth:'260px',offset:16})
+        .setLngLat([ev.lng,ev.lat])
+        .setHTML(`<div class="pu-r" style="color:${col}">${RNAME[ev.risk]}</div>
+          <div class="pu-l">${ev.city} &nbsp;·&nbsp; ${ev.lat.toFixed(3)}°, ${ev.lng.toFixed(3)}°</div>
+          <div class="pu-s">🌡 ${ev.temp}°F &nbsp; 💨 ${ev.wind} mph &nbsp; 👁 ${ev.vis} mi<br>🛣 ${ev.road} &nbsp;·&nbsp; ⚠️ Score: ${ev.score}/10</div>
+          <div class="pu-b">
+            <button class="pu-bz" onclick="zoom3DAt(${ev.lat},${ev.lng})">🏙 3D City View</button>
+            <button class="pu-bs" onclick="setStyle('satellite')">🛰 Satellite</button>
+          </div>`)
+        .addTo(MAP);});
+    markers.push(new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([ev.lng,ev.lat]).addTo(MAP));});}
+
+function findNearest(lat,lng){let b=null,bd=9999;
+  EVTS.forEach(e=>{const d=Math.sqrt((e.lat-lat)**2+(e.lng-lng)**2);if(d<bd){bd=d;b=e;}});return b;}
+
+// Panel
+function showPanel(ev){
+  curLocEvt=ev;
+  const col=RCOL[ev.risk||'MEDIUM'];
+  const badge=document.getElementById('pbadge');
+  badge.textContent=RNAME[ev.risk||'MEDIUM'];
+  const bs={HIGH:'rgba(255,51,102,.18)',MEDIUM:'rgba(255,170,0,.18)',LOW:'rgba(34,255,136,.13)'};
+  const bc={HIGH:'#ff3366',MEDIUM:'#ffaa00',LOW:'#22ff88'};
+  badge.style.background=bs[ev.risk||'MEDIUM'];badge.style.border=`1px solid ${bc[ev.risk||'MEDIUM']}`;badge.style.color=bc[ev.risk||'MEDIUM'];
+  document.getElementById('pname').textContent=ev.city||coordLabel(ev.lat,ev.lng);
+  document.getElementById('pcoord').textContent=`${(+ev.lat).toFixed(4)}°, ${(+ev.lng).toFixed(4)}°`;
+  document.getElementById('ptemp').textContent=`${ev.temp}°F`;
+  document.getElementById('pwind').textContent=`${ev.wind} mph`;
+  document.getElementById('pvis').textContent=`${ev.vis} mi`;
+  document.getElementById('proad').textContent=ev.road||'—';
+  document.getElementById('pscore').textContent=`${ev.score||'—'} / 10`;
+  document.getElementById('panel').style.display='block';}
+
+// Style switching
+function setStyle(s){
+  document.querySelectorAll('.sbtn[id^="t-"]').forEach(b=>b.classList.remove('act'));
+  const tb=document.getElementById('t-'+s);if(tb)tb.classList.add('act');
+  const c=MAP.getCenter(),z=MAP.getZoom(),p=MAP.getPitch(),b=MAP.getBearing();
+  curStyle=s;
+  MAP.setStyle(STYLES[s]||STYLES.street);
+  MAP.once('styledata',()=>{
+    MAP.setCenter(c);MAP.setZoom(z);MAP.setBearing(b);
+    MAP.setPitch(s==='3d'?60:s==='satellite'?30:p);
+    if(s==='3d'||s==='dark')setTimeout(add3DBuildings,200);
+    setTimeout(addMarkers,300);});}
+window.setStyle=setStyle;
+
+// 3D zoom
+function zoom3DAt(lat,lng){
+  MAP.flyTo({center:[lng,lat],zoom:17,pitch:62,bearing:(Math.random()-.5)*40,duration:2400,essential:true});
+  setTimeout(()=>setStyle('3d'),500);}
+window.zoom3DAt=zoom3DAt;
+
+function zoom3D(){if(curLocEvt)zoom3DAt(curLocEvt.lat,curLocEvt.lng);}
+window.zoom3D=zoom3D;
+
+// Search using Nominatim (free OSM geocoder)
+async function doSearch(){
+  const q=document.getElementById('sinput').value.trim();if(!q)return;
+  // First: match known cities
+  const ql=q.toLowerCase();
+  const hit=CTY.cities.find(c=>c.n.toLowerCase().includes(ql));
+  if(hit){MAP.flyTo({center:[hit.lng,hit.lat],zoom:13,pitch:52,bearing:-12,duration:1800,essential:true});return;}
+  // Fallback: Nominatim
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`,
+      {headers:{'Accept-Language':'en'}});
+    const d=await r.json();
+    if(d&&d[0]){MAP.flyTo({center:[+d[0].lon,+d[0].lat],zoom:13,pitch:52,bearing:-12,duration:1800,essential:true});
+      document.getElementById('sinput').value=d[0].display_name.split(',')[0];}
+    else alert(`Could not find "${q}". Try a city name.`);
+  }catch(e){console.error(e);alert('Search unavailable. Check your internet connection.');}}
+window.doSearch=doSearch;
+</script>
+</body>
+</html>
