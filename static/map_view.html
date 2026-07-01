@@ -910,7 +910,7 @@ MAP.on('tileload',function(){if(!dismissed)setTimeout(dismissLoad,500);});
 setTimeout(dismissLoad,3500);
 
 // Add markers
-const markerLayer=L.layerGroup().addTo(MAP);
+const markerLayer=L.featureGroup().addTo(MAP);
 function addMarkers(){
   markerLayer.clearLayers();
   EVTS.forEach(function(ev){
@@ -972,7 +972,7 @@ function setStyle(s){
   const opts={attribution:ATTRS[s]||ATTRS.street,maxZoom:19};
   if(s!=='satellite')opts.subdomains='abc';
   curLayer=L.tileLayer(TILES[s]||TILES.street,opts).addTo(MAP);
-  curLayer.bringToBack();markerLayer.bringToFront();
+  try{markerLayer.bringToFront();}catch(e){}
   if(s==='3d'){MAP.flyTo(MAP.getCenter(),Math.max(MAP.getZoom(),15),{duration:1.5});}
 }
 window.setStyle=setStyle;
