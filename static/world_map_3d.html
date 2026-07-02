@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>🌍 Real-Time Accident Risk Globe</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#020810;
+  font-family:'Segoe UI',system-ui,sans-serif;color:#c8e8ff}
+#c{position:fixed;inset:0;display:block;cursor:grab}
+#c:active{cursor:grabbing}
+/* labels */
+.cl{position:fixed;pointer-events:none;transform:translate(-50%,-50%);
+  z-index:12;user-select:none;white-space:nowrap;display:flex;
+  align-items:center;gap:2px;transition:opacity .12s}
+.cl span.f{font-size:.72rem}
+.cl span.n{font-size:.52rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
+.rH .n{color:rgba(255,120,140,.95);text-shadow:0 0 8px rgba(255,40,80,.9),0 0 16px rgba(255,40,80,.4)}
+.rM .n{color:rgba(255,210,70,.95);text-shadow:0 0 8px rgba(255,155,0,.9),0 0 16px rgba(255,155,0,.4)}
+.rL .n{color:rgba(80,255,160,.95);text-shadow:0 0 8px rgba(0,210,100,.9),0 0 16px rgba(0,210,100,.4)}
+/* ripple */
+#rip{position:fixed;pointer-events:none;z-index:25;width:46px;height:46px;
+  margin:-23px 0 0 -23px;border-radius:50%;border:1.5px solid rgba(80,180,255,.8);display:none}
+#rip.go{animation:rg .5s ease-out forwards}
+@keyframes rg{0%{transform:scale(.25);opacity:1}100%{transform:scale(3);opacity:0}}
+/* HUD */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10}
+#top{position:absolute;top:0;left:0;right:0;padding:12px 18px;
+  display:flex;align-items:center;gap:10px;
+  background:linear-gradient(180deg,rgba(2,8,22,.96) 65%,transparent);pointer-events:auto}
+#top h1{font-size:.95rem;font-weight:700;letter-spacing:.05em;
+  color:#7cc8f0;text-shadow:0 0 16px rgba(80,180,255,.5)}
+.pd{width:8px;height:8px;border-radius:50%;background:#22ff88;flex-shrink:0;
+  box-shadow:0 0 8px #22ff88,0 0 18px #22ff88;animation:pu 1.6s ease-in-out infinite}
+@keyframes pu{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(.5)}}
+#bc{display:none;align-items:center;gap:7px;margin-left:auto;font-size:.73rem;color:#5a90a8}
+#bcn{color:#b0d8f0;font-weight:700;font-size:.82rem}
+.btn{background:rgba(80,180,255,.12);border:1px solid rgba(80,180,255,.3);color:#6ab0c8;
+  border-radius:7px;padding:4px 11px;font-size:.67rem;cursor:pointer;pointer-events:auto;
+  transition:all .16s;letter-spacing:.03em;white-space:nowrap}
+.btn:hover{background:rgba(80,180,255,.24);color:#c8eaff}
+.btn.g{background:rgba(40,190,110,.13);border-color:rgba(40,190,110,.34);color:#38c878}
+.btn.g:hover{background:rgba(40,190,110,.25)}
+/* panels */
+#lp{position:absolute;top:56px;left:18px;
+  background:rgba(2,7,20,.88);border:1px solid rgba(80,180,255,.16);
+  border-radius:12px;padding:10px 14px;backdrop-filter:blur(12px);min-width:165px;pointer-events:auto}
+#lp h3{font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:#3a90b8;margin-bottom:7px}
+.lr{display:flex;align-items:center;gap:7px;margin-bottom:5px;font-size:.71rem;color:#7a98a8}
+.lr:last-child{margin-bottom:0}
+.ld{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.lc{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;font-size:.68rem}
+#sp{position:absolute;top:56px;right:18px;
+  background:rgba(2,7,20,.88);border:1px solid rgba(80,180,255,.16);
+  border-radius:12px;padding:10px 14px;backdrop-filter:blur(12px);min-width:178px;pointer-events:auto}
+#sp h3{font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:#3a90b8;margin-bottom:7px}
+.sr{display:flex;justify-content:space-between;margin-bottom:4px;font-size:.71rem}
+.sr:last-child{margin-bottom:0}.sk{color:#4a7888}.sv{color:#a0c8d8;font-weight:600;font-variant-numeric:tabular-nums}
+/* country card (bottom) */
+#cc{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+  display:none;background:rgba(2,7,20,.94);border:1px solid rgba(80,180,255,.22);
+  border-radius:14px;padding:14px 20px;backdrop-filter:blur(16px);
+  min-width:320px;max-width:500px;box-shadow:0 10px 32px rgba(0,0,0,.6);pointer-events:auto}
+#cc h2{font-size:1rem;font-weight:700;color:#c0e0f0;margin-bottom:2px}
+#cc-sub{font-size:.62rem;color:#3a90b8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+#cc-stats{display:flex;gap:16px;margin-bottom:10px}
+.cc-stat{text-align:center;flex:1}
+.cc-num{font-size:1.2rem;font-weight:700;font-variant-numeric:tabular-nums}
+.cc-lbl{font-size:.6rem;color:#4a7888;letter-spacing:.06em;text-transform:uppercase;margin-top:1px}
+#cc-bar-wrap{margin-top:10px;border-top:1px solid rgba(80,180,255,.1);padding-top:8px}
+#cc-bar-lbl{font-size:.58rem;color:#3a90b8;letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
+#cc-bar{display:flex;height:7px;border-radius:4px;overflow:hidden;gap:2px}
+.cc-seg{height:100%;border-radius:3px;transition:width .7s cubic-bezier(.4,0,.2,1)}
+/* hover tooltip */
+#tt{position:fixed;display:none;background:rgba(2,7,20,.94);
+  border:1px solid rgba(80,180,255,.28);border-radius:10px;padding:8px 13px;
+  font-size:.72rem;pointer-events:none;backdrop-filter:blur(10px);z-index:28;min-width:170px}
+#tt-r{font-weight:700;font-size:.86rem;margin-bottom:2px}
+#tt-c{color:#3a7888;font-size:.66rem;margin-bottom:3px}
+#tt-x{color:#8ab0c0;font-size:.68rem;line-height:1.7}
+/* hint */
+#hint{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+  font-size:.63rem;color:rgba(100,160,200,.42);white-space:nowrap;letter-spacing:.06em}
+#hint b{color:rgba(130,190,230,.62)}
+/* ticker */
+#ticker{position:absolute;bottom:0;left:0;right:0;height:30px;
+  background:rgba(2,6,18,.97);border-top:1px solid rgba(80,180,255,.1);
+  display:flex;align-items:center;overflow:hidden}
+.tlbl{flex-shrink:0;padding:0 10px;font-size:.59rem;letter-spacing:.12em;color:#3a90b8;
+  text-transform:uppercase;border-right:1px solid rgba(80,180,255,.12);height:100%;display:flex;align-items:center}
+.ttr{flex:1;overflow:hidden}
+.tin{display:flex;gap:46px;white-space:nowrap;font-size:.62rem;color:#5a88a0;animation:sc 32s linear infinite}
+@keyframes sc{0%{transform:translateX(100%)}100%{transform:translateX(-200%)}}
+.ti{display:flex;align-items:center;gap:4px}
+.tdo{width:4px;height:4px;border-radius:50%}
+/* loading */
+#ld{position:fixed;inset:0;background:#020810;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:100;transition:opacity .6s}
+#ld.out{opacity:0;pointer-events:none}
+.ring{width:46px;height:46px;border:2px solid rgba(80,180,255,.1);border-top-color:#3a90b8;
+  border-radius:50%;animation:sp .85s linear infinite;margin-bottom:14px}
+@keyframes sp{to{transform:rotate(360deg)}}
+#ld p{color:#3a90b8;font-size:.76rem;letter-spacing:.1em}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="rip"></div>
+<div id="ld"><div class="ring"></div><p>BUILDING GLOBE…</p></div>
+<div id="hud">
+  <div id="top">
+    <div class="pd"></div>
+    <h1 id="ht">Real-Time Accident Risk · Global View</h1>
+    <div id="bc">
+      <span id="bcn"></span>
+      <button class="btn" id="btnback">← Globe</button>
+      <button class="btn g" id="btnmap" style="display:none">🗺 Open Map</button>
+    </div>
+  </div>
+  <div id="lp">
+    <h3>Risk Level</h3>
+    <div class="lr"><div class="ld" style="background:#ff3366;box-shadow:0 0 5px #ff3366"></div>High<span class="lc" style="color:#ff3366" id="lch">—</span></div>
+    <div class="lr"><div class="ld" style="background:#ffaa00;box-shadow:0 0 5px #ffaa00"></div>Medium<span class="lc" style="color:#ffaa00" id="lcm">—</span></div>
+    <div class="lr"><div class="ld" style="background:#22ff88;box-shadow:0 0 5px #22ff88"></div>Low<span class="lc" style="color:#22ff88" id="lcl">—</span></div>
+  </div>
+  <div id="sp">
+    <h3>Live Stats</h3>
+    <div class="sr"><span class="sk">Active Events</span><span class="sv" style="color:#22ff88" id="sa">—</span></div>
+    <div class="sr"><span class="sk">High Risk</span><span class="sv" style="color:#ff3366" id="sh">—</span></div>
+    <div class="sr"><span class="sk">Medium Risk</span><span class="sv" style="color:#ffaa00" id="sm">—</span></div>
+    <div class="sr"><span class="sk">Low Risk</span><span class="sv" style="color:#22ff88" id="sl">—</span></div>
+  </div>
+  <div id="cc">
+    <h2 id="cc-title">Country</h2>
+    <div id="cc-sub">ACCIDENT RISK ANALYSIS</div>
+    <div id="cc-stats">
+      <div class="cc-stat"><div class="cc-num" style="color:#ff3366" id="cc-h">0</div><div class="cc-lbl">High</div></div>
+      <div class="cc-stat"><div class="cc-num" style="color:#ffaa00" id="cc-m">0</div><div class="cc-lbl">Medium</div></div>
+      <div class="cc-stat"><div class="cc-num" style="color:#22ff88" id="cc-l">0</div><div class="cc-lbl">Low</div></div>
+      <div class="cc-stat"><div class="cc-num" style="color:#7cc8f0" id="cc-t">0</div><div class="cc-lbl">Total</div></div>
+    </div>
+    <div id="cc-bar-wrap">
+      <div id="cc-bar-lbl">Risk Distribution</div>
+      <div id="cc-bar">
+        <div class="cc-seg" id="cc-sh" style="background:#ff3366"></div>
+        <div class="cc-seg" id="cc-sm" style="background:#ffaa00"></div>
+        <div class="cc-seg" id="cc-sl" style="background:#22ff88"></div>
+      </div>
+    </div>
+  </div>
+  <div id="tt"><div id="tt-r"></div><div id="tt-c"></div><div id="tt-x"></div></div>
+  <div id="hint"><b>Drag</b> to rotate &nbsp;·&nbsp; <b>Scroll</b> to zoom &nbsp;·&nbsp; <b>Click a country</b> to drill in</div>
+  <div id="ticker">
+    <div class="tlbl">Live Feed</div>
+    <div class="ttr"><div class="tin" id="tin">Loading…</div></div>
+  </div>
+</div>
+<script>
+'use strict';
+
+/* ═══ COUNTRY DATABASE ═══════════════════════════════════════════ */
+const CDB=[
+  {n:"United States",f:"🇺🇸",lat:38,lng:-97,z:4,r:"HIGH",
+   cities:[{n:"New York",lat:40.71,lng:-74.01},{n:"Los Angeles",lat:34.05,lng:-118.24},{n:"Chicago",lat:41.88,lng:-87.63},{n:"Houston",lat:29.76,lng:-95.37},{n:"Phoenix",lat:33.45,lng:-112.07},{n:"Philadelphia",lat:39.95,lng:-75.17},{n:"Dallas",lat:32.78,lng:-96.80},{n:"San Francisco",lat:37.77,lng:-122.42},{n:"Seattle",lat:47.61,lng:-122.33},{n:"Miami",lat:25.77,lng:-80.19},{n:"Las Vegas",lat:36.17,lng:-115.14},{n:"Denver",lat:39.74,lng:-104.98}],
+   b:[[49,-125],[49,-67],[25,-80],[24.5,-107],[32,-117],[49,-125]]},
+  {n:"India",f:"🇮🇳",lat:22,lng:78,z:5,r:"HIGH",
+   cities:[{n:"Delhi",lat:28.61,lng:77.21},{n:"Mumbai",lat:19.08,lng:72.88},{n:"Bengaluru",lat:12.97,lng:77.59},{n:"Kolkata",lat:22.57,lng:88.36},{n:"Hyderabad",lat:17.39,lng:78.49},{n:"Chennai",lat:13.08,lng:80.27},{n:"Ahmedabad",lat:23.03,lng:72.58},{n:"Pune",lat:18.52,lng:73.86},{n:"Meerut",lat:28.97,lng:77.71},{n:"Lucknow",lat:26.85,lng:80.95},{n:"Kanpur",lat:26.45,lng:80.33},{n:"Jaipur",lat:26.91,lng:75.79},{n:"Surat",lat:21.17,lng:72.83},{n:"Patna",lat:25.59,lng:85.14}],
+   b:[[36,74],[36,78],[34,74],[28,61],[23,60],[8,77],[8,80],[13,80],[22,88],[27,97],[34,78],[36,74]]},
+  {n:"China",f:"🇨🇳",lat:36,lng:105,z:4,r:"HIGH",
+   cities:[{n:"Beijing",lat:39.9,lng:116.4},{n:"Shanghai",lat:31.23,lng:121.47},{n:"Guangzhou",lat:23.13,lng:113.26},{n:"Shenzhen",lat:22.54,lng:114.06},{n:"Chengdu",lat:30.57,lng:104.07},{n:"Wuhan",lat:30.58,lng:114.31},{n:"Xi'an",lat:34.27,lng:108.95},{n:"Hangzhou",lat:30.29,lng:120.16},{n:"Nanjing",lat:32.06,lng:118.76}],
+   b:[[53,120],[50,135],[40,122],[22,114],[21,109],[22,99],[30,97],[37,73],[43,73],[49,87],[53,87],[53,120]]},
+  {n:"Brazil",f:"🇧🇷",lat:-14,lng:-51,z:4,r:"HIGH",
+   cities:[{n:"São Paulo",lat:-23.55,lng:-46.63},{n:"Rio de Janeiro",lat:-22.9,lng:-43.17},{n:"Brasília",lat:-15.77,lng:-47.93},{n:"Salvador",lat:-12.97,lng:-38.52},{n:"Fortaleza",lat:-3.72,lng:-38.54},{n:"Belo Horizonte",lat:-19.92,lng:-43.94},{n:"Manaus",lat:-3.10,lng:-60.02},{n:"Curitiba",lat:-25.43,lng:-49.27}],
+   b:[[5,-51],[4,-60],[2,-60],[0,-51],[-5,-35],[-18,-39],[-33,-53],[-33,-52],[-20,-58],[-10,-75],[5,-60],[5,-51]]},
+  {n:"Russia",f:"🇷🇺",lat:61,lng:90,z:4,r:"HIGH",
+   cities:[{n:"Moscow",lat:55.75,lng:37.62},{n:"St. Petersburg",lat:59.94,lng:30.32},{n:"Novosibirsk",lat:54.99,lng:82.9},{n:"Yekaterinburg",lat:56.85,lng:60.62},{n:"Kazan",lat:55.78,lng:49.12}],
+   b:[[72,32],[68,58],[60,28],[50,50],[40,65],[40,132],[50,141],[60,163],[68,170],[72,150],[72,32]]},
+  {n:"Mexico",f:"🇲🇽",lat:24,lng:-102,z:5,r:"HIGH",
+   cities:[{n:"Mexico City",lat:19.43,lng:-99.13},{n:"Guadalajara",lat:20.66,lng:-103.35},{n:"Monterrey",lat:25.67,lng:-100.31},{n:"Puebla",lat:19.04,lng:-98.19},{n:"Tijuana",lat:32.52,lng:-117.04}],
+   b:[[32,-117],[31,-106],[24,-99],[18,-88],[16,-87],[18,-94],[16,-99],[24,-110],[28,-114],[32,-117]]},
+  {n:"United Kingdom",f:"🇬🇧",lat:54,lng:-2,z:6,r:"MEDIUM",
+   cities:[{n:"London",lat:51.51,lng:-0.13},{n:"Manchester",lat:53.48,lng:-2.24},{n:"Birmingham",lat:52.48,lng:-1.9},{n:"Glasgow",lat:55.86,lng:-4.25},{n:"Edinburgh",lat:55.95,lng:-3.19},{n:"Leeds",lat:53.80,lng:-1.55}],
+   b:[[58,-5],[60,-1],[58,2],[52,2],[51,1],[50,0],[50,-5],[54,-5],[55,-6],[58,-5]]},
+  {n:"Germany",f:"🇩🇪",lat:51,lng:10,z:6,r:"MEDIUM",
+   cities:[{n:"Berlin",lat:52.52,lng:13.4},{n:"Munich",lat:48.14,lng:11.58},{n:"Hamburg",lat:53.57,lng:10.02},{n:"Cologne",lat:50.94,lng:6.96},{n:"Frankfurt",lat:50.11,lng:8.68}],
+   b:[[55,8],[55,14],[51,24],[48,14],[47,10],[47,7],[49,6],[51,6],[54,8],[55,8]]},
+  {n:"France",f:"🇫🇷",lat:46,lng:2,z:6,r:"MEDIUM",
+   cities:[{n:"Paris",lat:48.85,lng:2.35},{n:"Lyon",lat:45.75,lng:4.85},{n:"Marseille",lat:43.3,lng:5.4},{n:"Toulouse",lat:43.60,lng:1.44},{n:"Bordeaux",lat:44.84,lng:-0.58}],
+   b:[[51,2],[51,4],[49,8],[47,8],[44,6],[43,7],[42,3],[43,-2],[47,-2],[47,-4],[48,-5],[51,2]]},
+  {n:"Japan",f:"🇯🇵",lat:37,lng:137,z:6,r:"MEDIUM",
+   cities:[{n:"Tokyo",lat:35.69,lng:139.69},{n:"Osaka",lat:34.69,lng:135.5},{n:"Nagoya",lat:35.18,lng:136.9},{n:"Sapporo",lat:43.06,lng:141.35},{n:"Fukuoka",lat:33.59,lng:130.4}],
+   b:[[41,141],[43,145],[44,142],[43,141],[38,141],[34,130],[31,130],[34,136],[36,137],[38,141],[41,141]]},
+  {n:"Australia",f:"🇦🇺",lat:-25,lng:133,z:4,r:"MEDIUM",
+   cities:[{n:"Sydney",lat:-33.87,lng:151.21},{n:"Melbourne",lat:-37.81,lng:144.96},{n:"Brisbane",lat:-27.47,lng:153.03},{n:"Perth",lat:-31.95,lng:115.86},{n:"Adelaide",lat:-34.93,lng:138.6}],
+   b:[[-13,132],[-22,114],[-30,115],[-38,140],[-39,146],[-32,153],[-22,150],[-14,144],[-13,132]]},
+  {n:"Canada",f:"🇨🇦",lat:57,lng:-95,z:4,r:"MEDIUM",
+   cities:[{n:"Toronto",lat:43.7,lng:-79.42},{n:"Vancouver",lat:49.28,lng:-123.12},{n:"Montreal",lat:45.5,lng:-73.57},{n:"Calgary",lat:51.05,lng:-114.07}],
+   b:[[83,-68],[60,-64],[47,-53],[44,-64],[45,-74],[45,-84],[49,-95],[49,-123],[60,-141],[70,-141],[83,-68]]},
+  {n:"Italy",f:"🇮🇹",lat:42,lng:12,z:6,r:"MEDIUM",
+   cities:[{n:"Rome",lat:41.9,lng:12.5},{n:"Milan",lat:45.46,lng:9.19},{n:"Naples",lat:40.85,lng:14.27},{n:"Turin",lat:45.07,lng:7.69}],
+   b:[[47,6],[47,14],[42,18],[38,16],[38,15],[37,14],[38,11],[40,9],[43,8],[44,7],[47,6]]},
+  {n:"Spain",f:"🇪🇸",lat:40,lng:-3,z:6,r:"MEDIUM",
+   cities:[{n:"Madrid",lat:40.42,lng:-3.7},{n:"Barcelona",lat:41.39,lng:2.17},{n:"Valencia",lat:39.47,lng:-0.37},{n:"Seville",lat:37.39,lng:-5.99}],
+   b:[[44,-8],[44,-3],[44,3],[42,3],[40,4],[36,2],[36,-5],[36,-7],[37,-9],[38,-9],[43,-9],[44,-8]]},
+  {n:"South Korea",f:"🇰🇷",lat:36,lng:128,z:7,r:"MEDIUM",
+   cities:[{n:"Seoul",lat:37.57,lng:126.98},{n:"Busan",lat:35.16,lng:129.07},{n:"Incheon",lat:37.46,lng:126.71},{n:"Daegu",lat:35.87,lng:128.6}],
+   b:[[38,125],[38,130],[35,129],[34,127],[36,126],[38,125]]},
+  {n:"Turkey",f:"🇹🇷",lat:39,lng:35,z:5,r:"HIGH",
+   cities:[{n:"Istanbul",lat:41.01,lng:28.98},{n:"Ankara",lat:39.93,lng:32.85},{n:"İzmir",lat:38.41,lng:27.14},{n:"Bursa",lat:40.20,lng:29.06}],
+   b:[[42,26],[42,38],[40,42],[37,44],[37,36],[36,28],[37,26],[42,26]]},
+  {n:"Egypt",f:"🇪🇬",lat:27,lng:30,z:6,r:"HIGH",
+   cities:[{n:"Cairo",lat:30.06,lng:31.24},{n:"Alexandria",lat:31.2,lng:29.92},{n:"Luxor",lat:25.69,lng:32.65},{n:"Aswan",lat:24.09,lng:32.9}],
+   b:[[31,25],[31,35],[29,34],[22,37],[22,25],[31,25]]},
+  {n:"Nigeria",f:"🇳🇬",lat:9,lng:8,z:5,r:"HIGH",
+   cities:[{n:"Lagos",lat:6.52,lng:3.38},{n:"Abuja",lat:9.07,lng:7.4},{n:"Kano",lat:12.0,lng:8.52},{n:"Ibadan",lat:7.38,lng:3.9},{n:"Port Harcourt",lat:4.82,lng:7.0}],
+   b:[[14,2],[14,15],[8,13],[4,8],[4,5],[6,2],[14,2]]},
+  {n:"South Africa",f:"🇿🇦",lat:-29,lng:25,z:5,r:"HIGH",
+   cities:[{n:"Johannesburg",lat:-26.2,lng:28.04},{n:"Cape Town",lat:-33.92,lng:18.42},{n:"Durban",lat:-29.86,lng:31.01},{n:"Pretoria",lat:-25.75,lng:28.24}],
+   b:[[-22,29],[-25,33],[-34,27],[-35,20],[-29,17],[-22,17],[-22,29]]},
+  {n:"Argentina",f:"🇦🇷",lat:-35,lng:-65,z:4,r:"MEDIUM",
+   cities:[{n:"Buenos Aires",lat:-34.61,lng:-58.38},{n:"Córdoba",lat:-31.42,lng:-64.19},{n:"Mendoza",lat:-32.89,lng:-68.84}],
+   b:[[-21,-65],[-24,-60],[-33,-52],[-38,-57],[-55,-68],[-55,-63],[-42,-63],[-21,-65]]},
+  {n:"Pakistan",f:"🇵🇰",lat:30,lng:69,z:5,r:"HIGH",
+   cities:[{n:"Karachi",lat:24.86,lng:67.01},{n:"Lahore",lat:31.55,lng:74.35},{n:"Islamabad",lat:33.72,lng:73.04},{n:"Peshawar",lat:34.01,lng:71.57},{n:"Multan",lat:30.19,lng:71.47}],
+   b:[[37,73],[36,77],[34,74],[32,69],[28,62],[25,62],[24,67],[37,73]]},
+  {n:"Indonesia",f:"🇮🇩",lat:-3,lng:117,z:5,r:"HIGH",
+   cities:[{n:"Jakarta",lat:-6.21,lng:106.85},{n:"Surabaya",lat:-7.25,lng:112.75},{n:"Bandung",lat:-6.91,lng:107.61},{n:"Medan",lat:3.59,lng:98.67},{n:"Denpasar",lat:-8.65,lng:115.22}],
+   b:[[5,95],[5,108],[0,104],[-5,105],[-8,107],[-9,116],[-8,125],[-4,140],[0,132],[4,118],[5,95]]},
+  {n:"Iran",f:"🇮🇷",lat:32,lng:53,z:5,r:"HIGH",
+   cities:[{n:"Tehran",lat:35.7,lng:51.42},{n:"Mashhad",lat:36.3,lng:59.6},{n:"Isfahan",lat:32.66,lng:51.67},{n:"Shiraz",lat:29.61,lng:52.53}],
+   b:[[38,44],[38,62],[36,63],[31,61],[26,57],[29,50],[30,48],[34,46],[37,44],[38,44]]},
+  {n:"Saudi Arabia",f:"🇸🇦",lat:24,lng:45,z:5,r:"HIGH",
+   cities:[{n:"Riyadh",lat:24.69,lng:46.72},{n:"Jeddah",lat:21.49,lng:39.19},{n:"Mecca",lat:21.39,lng:39.85},{n:"Dammam",lat:26.44,lng:50.1}],
+   b:[[32,38],[30,43],[29,49],[22,57],[18,53],[15,43],[17,42],[22,39],[28,35],[30,35],[32,38]]},
+  {n:"Thailand",f:"🇹🇭",lat:15,lng:101,z:5,r:"HIGH",
+   cities:[{n:"Bangkok",lat:13.75,lng:100.52},{n:"Chiang Mai",lat:18.79,lng:98.98},{n:"Phuket",lat:7.89,lng:98.3}],
+   b:[[21,100],[19,100],[21,102],[20,104],[13,102],[7,100],[7,99],[10,99],[21,100]]},
+  {n:"Vietnam",f:"🇻🇳",lat:16,lng:106,z:5,r:"HIGH",
+   cities:[{n:"Ho Chi Minh City",lat:10.78,lng:106.7},{n:"Hanoi",lat:21.03,lng:105.85},{n:"Da Nang",lat:16.07,lng:108.22}],
+   b:[[23,104],[22,106],[21,108],[16,108],[10,107],[10,105],[15,104],[22,103],[23,104]]},
+  {n:"Colombia",f:"🇨🇴",lat:4,lng:-74,z:5,r:"HIGH",
+   cities:[{n:"Bogotá",lat:4.71,lng:-74.07},{n:"Medellín",lat:6.24,lng:-75.59},{n:"Cali",lat:3.43,lng:-76.54},{n:"Barranquilla",lat:10.96,lng:-74.80}],
+   b:[[12,-72],[12,-74],[8,-76],[2,-78],[0,-76],[2,-68],[8,-72],[12,-72]]},
+  {n:"Kenya",f:"🇰🇪",lat:-1,lng:38,z:6,r:"HIGH",
+   cities:[{n:"Nairobi",lat:-1.29,lng:36.82},{n:"Mombasa",lat:-4.04,lng:39.67},{n:"Kisumu",lat:-0.1,lng:34.75}],
+   b:[[5,35],[5,42],[0,42],[-5,40],[-5,34],[4,35],[5,35]]},
+  {n:"UAE",f:"🇦🇪",lat:24,lng:54,z:8,r:"MEDIUM",
+   cities:[{n:"Dubai",lat:25.2,lng:55.27},{n:"Abu Dhabi",lat:24.47,lng:54.37},{n:"Sharjah",lat:25.35,lng:55.39}],
+   b:[[26,51],[26,56],[24,56],[23,53],[24,52],[26,51]]},
+  {n:"Netherlands",f:"🇳🇱",lat:52,lng:5,z:8,r:"LOW",
+   cities:[{n:"Amsterdam",lat:52.37,lng:4.9},{n:"Rotterdam",lat:51.92,lng:4.48},{n:"Utrecht",lat:52.09,lng:5.12},{n:"The Hague",lat:52.08,lng:4.31}],
+   b:[[53,4],[53,7],[52,7],[51,4],[52,4],[53,4]]},
+  {n:"Poland",f:"🇵🇱",lat:52,lng:20,z:6,r:"MEDIUM",
+   cities:[{n:"Warsaw",lat:52.23,lng:21.01},{n:"Kraków",lat:50.06,lng:19.94},{n:"Wrocław",lat:51.11,lng:17.03},{n:"Gdańsk",lat:54.35,lng:18.65}],
+   b:[[55,14],[55,23],[51,24],[49,18],[50,14],[54,14],[55,14]]},
+  {n:"Ukraine",f:"🇺🇦",lat:49,lng:32,z:6,r:"HIGH",
+   cities:[{n:"Kyiv",lat:50.45,lng:30.52},{n:"Kharkiv",lat:49.99,lng:36.23},{n:"Lviv",lat:49.84,lng:24.03},{n:"Odessa",lat:46.48,lng:30.73}],
+   b:[[52,24],[52,34],[50,38],[46,36],[45,33],[46,30],[48,24],[50,22],[52,24]]},
+  {n:"Sweden",f:"🇸🇪",lat:62,lng:17,z:5,r:"LOW",
+   cities:[{n:"Stockholm",lat:59.33,lng:18.07},{n:"Gothenburg",lat:57.71,lng:11.97},{n:"Malmö",lat:55.60,lng:13.0}],
+   b:[[69,18],[66,24],[62,30],[60,26],[57,18],[56,10],[58,10],[63,10],[67,14],[69,18]]},
+  {n:"Norway",f:"🇳🇴",lat:64,lng:16,z:5,r:"LOW",
+   cities:[{n:"Oslo",lat:59.91,lng:10.75},{n:"Bergen",lat:60.39,lng:5.32},{n:"Trondheim",lat:63.43,lng:10.39}],
+   b:[[71,26],[68,28],[63,8],[58,6],[59,10],[60,12],[68,16],[70,26],[71,26]]},
+  {n:"Morocco",f:"🇲🇦",lat:31,lng:-7,z:6,r:"MEDIUM",
+   cities:[{n:"Casablanca",lat:33.59,lng:-7.62},{n:"Rabat",lat:33.99,lng:-6.85},{n:"Marrakech",lat:31.63,lng:-7.99},{n:"Tangier",lat:35.76,lng:-5.84}],
+   b:[[36,-6],[36,-2],[34,0],[30,-3],[28,-9],[28,-13],[30,-13],[35,-6],[36,-6]]},
+  {n:"Ethiopia",f:"🇪🇹",lat:9,lng:40,z:5,r:"HIGH",
+   cities:[{n:"Addis Ababa",lat:9.02,lng:38.75},{n:"Dire Dawa",lat:9.6,lng:41.86},{n:"Mekele",lat:13.5,lng:39.47}],
+   b:[[15,36],[15,42],[10,43],[3,40],[5,34],[10,33],[15,36]]},
+  {n:"Ghana",f:"🇬🇭",lat:7,lng:-1,z:6,r:"HIGH",
+   cities:[{n:"Accra",lat:5.55,lng:-0.2},{n:"Kumasi",lat:6.69,lng:-1.62},{n:"Tamale",lat:9.4,lng:-0.85}],
+   b:[[11,-1],[11,0],[8,2],[4,2],[4,-1],[5,-3],[6,-2],[11,-1]]},
+  {n:"Malaysia",f:"🇲🇾",lat:4,lng:109,z:6,r:"MEDIUM",
+   cities:[{n:"Kuala Lumpur",lat:3.14,lng:101.69},{n:"Penang",lat:5.42,lng:100.33},{n:"Johor Bahru",lat:1.48,lng:103.74}],
+   b:[[7,100],[7,103],[4,103],[2,104],[6,110],[7,118],[6,117],[7,100]]},
+  {n:"Philippines",f:"🇵🇭",lat:12,lng:122,z:6,r:"MEDIUM",
+   cities:[{n:"Manila",lat:14.60,lng:121.0},{n:"Cebu",lat:10.31,lng:123.89},{n:"Davao",lat:7.19,lng:125.46}],
+   b:[[18,121],[18,122],[14,121],[10,124],[7,125],[9,117],[13,120],[18,121]]},
+  {n:"Singapore",f:"🇸🇬",lat:1.35,lng:103.82,z:12,r:"LOW",
+   cities:[{n:"CBD",lat:1.29,lng:103.85},{n:"Orchard",lat:1.31,lng:103.82},{n:"Tampines",lat:1.35,lng:103.94}],
+   b:[[1.47,103.6],[1.47,104.05],[1.15,104.05],[1.15,103.6],[1.47,103.6]]},
+  {n:"New Zealand",f:"🇳🇿",lat:-41,lng:174,z:5,r:"LOW",
+   cities:[{n:"Auckland",lat:-36.86,lng:174.76},{n:"Wellington",lat:-41.27,lng:174.78},{n:"Christchurch",lat:-43.53,lng:172.64}],
+   b:[[-34,172],[-34,175],[-38,178],[-44,171],[-46,170],[-41,175],[-36,175],[-34,172]]},
+];
+
+const RCOL={HIGH:'#ff3366',MEDIUM:'#ffaa00',LOW:'#22ff88'};
+const RNAME={HIGH:'🔴 HIGH RISK',MEDIUM:'🟡 MEDIUM RISK',LOW:'🟢 LOW RISK'};
+const ROADS=['Highway','Urban Road','Ring Road','Expressway','Rural Road','Bridge','Flyover','Boulevard','Avenue'];
+
+function riskFor(p){const r=Math.random();
+  return p==='HIGH'?r<.44?'HIGH':r<.72?'MEDIUM':'LOW':
+         p==='MEDIUM'?r<.22?'HIGH':r<.56?'MEDIUM':'LOW':
+         r<.1?'HIGH':r<.38?'MEDIUM':'LOW';}
+
+/* ═══ THREE.JS GLOBE ══════════════════════════════════════════ */
+const cv=document.getElementById('c');
+const W=()=>window.innerWidth,H=()=>window.innerHeight;
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(W(),H());
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(42,W()/H(),.1,800);
+cam.position.set(0,0,2.7);
+window.addEventListener('resize',()=>{cam.aspect=W()/H();cam.updateProjectionMatrix();renderer.setSize(W(),H());projLabels();});
+
+scene.add(new THREE.DirectionalLight(0xfff8ee,2.8).clone().translateX(5).translateY(3).translateZ(5));
+const sun=new THREE.DirectionalLight(0xfff8ee,2.8);sun.position.set(5,3,5);scene.add(sun);
+scene.add(new THREE.AmbientLight(0x102040,.9));
+const fill=new THREE.DirectionalLight(0x102030,.4);fill.position.set(-4,-2,-3);scene.add(fill);
+
+const RL=1;
+
+/* ─── Earth texture: draw everything onto canvas, then use as Three.js texture ─── */
+function mkTex(){
+  const S=4096,H2=S/2;
+  const tc=document.createElement('canvas');tc.width=S;tc.height=H2;
+  const tx=tc.getContext('2d');
+
+  // 1. Ocean
+  const og=tx.createLinearGradient(0,0,0,H2);
+  og.addColorStop(0,'#061420');og.addColorStop(.45,'#08203c');og.addColorStop(1,'#040e18');
+  tx.fillStyle=og;tx.fillRect(0,0,S,H2);
+
+  // helpers
+  const px=(lng,lat)=>[(lng+180)/360*S,(90-lat)/180*H2];
+  function poly(pts,fill,stroke,sw){
+    if(!pts||pts.length<3)return;
+    tx.beginPath();
+    const[x0,y0]=px(pts[0][1],pts[0][0]);tx.moveTo(x0,y0);
+    for(let i=1;i<pts.length;i++){const[x,y]=px(pts[i][1],pts[i][0]);tx.lineTo(x,y);}
+    tx.closePath();
+    if(fill){tx.fillStyle=fill;tx.fill('evenodd');}
+    if(stroke){tx.strokeStyle=stroke;tx.lineWidth=sw||1;tx.stroke();}}
+
+  // 2. World land background (dark green)
+  const LAND=[
+    [[49,-125],[49,-95],[49,-67],[47,-53],[44,-65],[25,-80],[8,-77],[26,-97],[32,-117],[49,-125]],
+    [[12,-73],[0,-50],[-10,-37],[-23,-43],[-35,-57],[-55,-72],[-20,-70],[0,-78],[12,-73]],
+    [[71,20],[71,30],[55,30],[45,35],[36,28],[36,10],[43,-9],[50,-5],[58,15],[65,15],[71,20]],
+    [[37,10],[37,35],[20,55],[0,42],[-35,26],[-34,19],[0,8],[10,-18],[20,-17],[37,10]],
+    [[72,32],[72,80],[68,60],[60,28],[50,50],[40,65],[40,132],[50,141],[60,163],[68,170],[30,122],[22,100],[8,77],[22,68],[25,57],[30,49],[42,52],[42,32],[72,32]],
+    [[-13,132],[-22,114],[-38,140],[-39,146],[-32,153],[-22,150],[-14,144],[-13,132]],
+    [[84,-52],[84,-10],[72,-22],[60,-44],[64,-52],[84,-52]],
+    [[41,141],[43,145],[44,142],[39,141],[34,130],[34,136],[38,141],[41,141]],
+    [[51,0],[56,2],[60,-2],[58,-4],[51,0]],
+    [[1.47,103.6],[1.47,104.05],[1.15,104.05],[1.15,103.6]],
+    [[-34,172],[-38,178],[-46,169],[-41,175],[-34,172]],
+  ];
+  LAND.forEach(p=>poly(p,'#17382a',null));
+
+  // 3. Country fills (risk-coloured)
+  CDB.forEach(c=>{
+    if(!c.b||c.b.length<3)return;
+    const fc=c.r==='HIGH'?'rgba(180,15,40,.62)':c.r==='MEDIUM'?'rgba(140,80,0,.52)':'rgba(8,120,50,.48)';
+    poly(c.b,fc,null);});
+
+  // 4. Country borders — the KEY visual element
+  CDB.forEach(c=>{
+    if(!c.b||c.b.length<3)return;
+    // White glow underneath
+    poly(c.b,null,'rgba(255,255,255,.15)',5.5);
+    // Colored border on top
+    const bc=c.r==='HIGH'?'rgba(255,80,110,.98)':c.r==='MEDIUM'?'rgba(255,195,40,.95)':'rgba(50,245,130,.92)';
+    poly(c.b,null,bc,2.5);});
+
+  // 5. Ocean grid
+  tx.globalAlpha=.18;
+  for(let la=-75;la<=75;la+=15){
+    tx.beginPath();const[,y0]=px(0,la);tx.moveTo(0,y0);tx.lineTo(S,y0);
+    tx.strokeStyle=la===0?'rgba(100,200,255,.8)':'rgba(60,140,200,.5)';
+    tx.lineWidth=la===0?2:.7;tx.stroke();}
+  for(let lo=-165;lo<=180;lo+=15){
+    tx.beginPath();tx.moveTo(...px(lo,-90));tx.lineTo(...px(lo,90));
+    tx.strokeStyle='rgba(60,140,200,.35)';tx.lineWidth=.7;tx.stroke();}
+  tx.globalAlpha=1;
+
+  // 6. Polar ice
+  [[0,S*.13],[H2,S*.10]].forEach(([cy,r])=>{
+    const g=tx.createRadialGradient(S/2,cy,0,S/2,cy,r*S);
+    g.addColorStop(0,'rgba(210,238,255,.92)');g.addColorStop(1,'rgba(180,220,255,0)');
+    tx.fillStyle=g;tx.fillRect(0,0,S,H2);});
+
+  // 7. City dots
+  CDB.forEach(c=>{
+    c.cities.slice(0,8).forEach(city=>{
+      const[cx,cy]=px(city.lng,city.lat);
+      tx.beginPath();tx.arc(cx,cy,6,0,6.28);tx.fillStyle='rgba(255,230,120,.18)';tx.fill();
+      tx.beginPath();tx.arc(cx,cy,3,0,6.28);tx.fillStyle='rgba(255,240,160,.9)';tx.fill();
+      tx.beginPath();tx.arc(cx,cy,1.2,0,6.28);tx.fillStyle='rgba(255,255,220,1)';tx.fill();});});
+
+  // 8. Country name text on texture
+  CDB.forEach(c=>{
+    const[cx,cy]=px(c.lng,c.lat);
+    tx.font='bold 18px Arial';tx.textAlign='center';tx.textBaseline='middle';
+    tx.fillStyle=c.r==='HIGH'?'rgba(255,120,140,.85)':c.r==='MEDIUM'?'rgba(255,210,80,.85)':'rgba(80,255,160,.85)';
+    tx.fillText(c.f+' '+c.n,cx,cy);});
+
+  return new THREE.CanvasTexture(tc);}
+
+const earthMesh=new THREE.Mesh(new THREE.SphereGeometry(RL,72,72),
+  new THREE.MeshPhongMaterial({map:mkTex(),
+    specular:new THREE.Color(0x0a1a28),shininess:22,
+    emissive:new THREE.Color(0x020810),emissiveIntensity:.2}));
+scene.add(earthMesh);
+
+// Atmosphere shaders
+function mkAtm(r,side,pow,op){
+  return new THREE.Mesh(new THREE.SphereGeometry(r,48,48),
+    new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side,
+      vertexShader:`varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+      fragmentShader:`varying vec3 vN;void main(){float r=pow(1.-abs(dot(vN,vec3(0,0,1.))),${pow});gl_FragColor=vec4(.08,.38,.82,r*${op});}`}));}
+const atm1=mkAtm(RL*1.038,THREE.FrontSide,'2.4','.55');scene.add(atm1);
+const atm2=mkAtm(RL*1.10,THREE.BackSide,'4.2','.16');scene.add(atm2);
+
+// Stars
+(()=>{const n=2800,g=new THREE.BufferGeometry(),p=new Float32Array(n*3),co=new Float32Array(n*3);
+  for(let i=0;i<n;i++){const t=Math.random()*6.28,a=Math.acos(2*Math.random()-1),r=160+Math.random()*120;
+    p[i*3]=r*Math.sin(a)*Math.cos(t);p[i*3+1]=r*Math.cos(a);p[i*3+2]=r*Math.sin(a)*Math.sin(t);
+    const b=.35+Math.random()*.65,k=Math.random();
+    co[i*3]=b*(k>.7?.88:1);co[i*3+1]=b;co[i*3+2]=b*(k<.3?.88:1);}
+  g.setAttribute('position',new THREE.BufferAttribute(p,3));g.setAttribute('color',new THREE.BufferAttribute(co,3));
+  scene.add(new THREE.Points(g,new THREE.PointsMaterial({size:.26,vertexColors:true,sizeAttenuation:true})));})();
+
+// lat/lng → 3D vector
+function ll3(lat,lng,r){const ph=(90-lat)*Math.PI/180,th=(lng+180)*Math.PI/180;
+  return new THREE.Vector3(-r*Math.sin(ph)*Math.cos(th),r*Math.cos(ph),r*Math.sin(ph)*Math.sin(th));}
+
+// Glow texture for risk dots
+function mkGlowTex(col){const s=64,tc=document.createElement('canvas');tc.width=s;tc.height=s;
+  const tx=tc.getContext('2d'),g=tx.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  const h='#'+col.toString(16).padStart(6,'0');
+  g.addColorStop(0,h+'ff');g.addColorStop(.3,h+'cc');g.addColorStop(.65,h+'33');g.addColorStop(1,h+'00');
+  tx.fillStyle=g;tx.fillRect(0,0,s,s);return new THREE.CanvasTexture(tc);}
+
+const RC={HIGH:0xff3366,MEDIUM:0xffaa00,LOW:0x22ff88};
+
+class Dot{
+  constructor(lat,lng,risk,city=''){
+    this.lat=lat;this.lng=lng;this.risk=risk;this.city=city;
+    this.temp=(Math.random()*55+32).toFixed(1);this.wind=(Math.random()*45).toFixed(1);this.vis=(Math.random()*9+1).toFixed(1);
+    this.score=(Math.random()*10).toFixed(1);this.road=ROADS[Math.floor(Math.random()*ROADS.length)];
+    this.ttl=11000+Math.random()*14000;this.born=Date.now()-Math.random()*5000;
+    this.alpha=0;this.pt=Math.random()*6.28;
+    const col=RC[risk];const br=risk==='HIGH'?.022:risk==='MEDIUM'?.016:.012;this.br=br;
+    this.sph=new THREE.Mesh(new THREE.SphereGeometry(br,8,8),new THREE.MeshBasicMaterial({color:col,transparent:true}));
+    const gs=br*(risk==='HIGH'?17:risk==='MEDIUM'?12:8);
+    this.glo=new THREE.Sprite(new THREE.SpriteMaterial({map:mkGlowTex(col),color:col,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+    this.glo.scale.set(gs,gs,gs);
+    this.ring=null;
+    if(risk==='HIGH'){this.ring=new THREE.Mesh(new THREE.RingGeometry(br*1.4,br*2.4,20),
+      new THREE.MeshBasicMaterial({color:col,transparent:true,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false}));}
+    this.grp=new THREE.Group();this.grp.add(this.sph,this.glo);if(this.ring)this.grp.add(this.ring);
+    const pos=ll3(lat,lng,RL+br);this.grp.position.copy(pos);this.grp.lookAt(new THREE.Vector3());this.grp.rotateX(Math.PI);
+    earthMesh.add(this.grp);}
+  update(now,dt){const age=now-this.born;if(age>this.ttl)return false;
+    this.alpha=age<800?age/800:age>this.ttl-1200?(this.ttl-age)/1200:1;
+    this.pt+=dt*.003;const pm=this.risk==='HIGH'?.32:this.risk==='MEDIUM'?.2:.1;
+    const ps=1+Math.sin(this.pt)*pm;
+    this.sph.scale.set(ps,ps,ps);this.sph.material.opacity=this.alpha*.92;
+    this.glo.material.opacity=this.alpha*(.52+Math.sin(this.pt)*.13);
+    if(this.ring){const rp=1+Math.sin(this.pt*.75)*.55;this.ring.scale.set(rp,rp,1);
+      this.ring.material.opacity=this.alpha*.36*(1-Math.abs(Math.sin(this.pt*.75)));}
+    return true;}
+  dispose(){earthMesh.remove(this.grp);this.sph.geometry.dispose();this.sph.material.dispose();
+    this.glo.material.map.dispose();this.glo.material.dispose();
+    if(this.ring){this.ring.geometry.dispose();this.ring.material.dispose();}}}
+
+let DOTS=[],MODE='world',ACTIVE=null;
+const WPTS=CDB.flatMap(c=>c.cities.slice(0,3));
+
+function seedWorld(){DOTS.forEach(d=>d.dispose());DOTS=[];
+  for(let i=0;i<85;i++){const p=WPTS[Math.floor(Math.random()*WPTS.length)];
+    const r=Math.random();DOTS.push(new Dot(p.lat+(Math.random()-.5)*5,p.lng+(Math.random()-.5)*5,r<.3?'HIGH':r<.62?'MEDIUM':'LOW',p.n));}}
+
+function seedCountry(c){DOTS.forEach(d=>d.dispose());DOTS=[];
+  for(let i=0;i<130;i++){const hs=c.cities[Math.floor(Math.random()*c.cities.length)];
+    DOTS.push(new Dot(hs.lat+(Math.random()-.5)*.5,hs.lng+(Math.random()-.5)*.5,riskFor(c.r),hs.n));}}
+seedWorld();
+
+/* ── HTML labels projected onto sphere ── */
+const labelEls={};
+CDB.forEach(c=>{
+  const d=document.createElement('div');
+  d.className='cl r'+c.r[0];
+  d.innerHTML=`<span class="f">${c.f}</span><span class="n">${c.n}</span>`;
+  document.body.appendChild(d);labelEls[c.n]=d;
+  c._lp=ll3(c.lat,c.lng,RL+.014);});
+
+function projLabels(){
+  CDB.forEach(c=>{
+    const wp=c._lp.clone().applyEuler(earthMesh.rotation);
+    const v=wp.clone().project(cam);
+    const cd=new THREE.Vector3().subVectors(cam.position,wp).normalize();
+    const dot=wp.clone().normalize().dot(cd);
+    const el=labelEls[c.n];
+    const hide=MODE==='country'&&c.n!==ACTIVE?.n;
+    if(dot>0.08&&!hide){
+      el.style.display='flex';
+      el.style.left=(v.x*.5+.5)*W()+'px';
+      el.style.top=(-.5*v.y+.5)*H()+'px';
+      el.style.opacity=String(Math.max(0,Math.min(1,(dot-.06)/.26)));
+      const z=Math.max(.7,Math.min(1.5,2.7/cam.position.z));
+      el.querySelector('.n').style.fontSize=(.52*z)+'rem';
+      el.querySelector('.f').style.fontSize=(.72*z)+'rem';}
+    else el.style.display='none';});}
+
+/* ── Camera ── */
+const CAM={tZ:2.7,cZ:2.7,tRx:.22,tRy:0,ls:.065};
+const eR={x:.22,y:0};
+const drag={on:false,lx:0,ly:0,vx:0,vy:0};let dragged=false;
+
+function flyTo(c){
+  CAM.tRy=-((c.lng+180)*Math.PI/180-Math.PI);
+  CAM.tRx=Math.max(-Math.PI*.42,Math.min(Math.PI*.42,-(c.lat*Math.PI/180)));
+  CAM.tZ=1.6;}
+function flyWorld(){CAM.tZ=2.7;CAM.tRx=.22;CAM.tRy=eR.y;}
+
+cv.addEventListener('mousedown',e=>{drag.on=true;drag.lx=e.clientX;drag.ly=e.clientY;drag.vx=drag.vy=0;dragged=false;});
+window.addEventListener('mouseup',()=>{drag.on=false;});
+window.addEventListener('mousemove',e=>{
+  if(!drag.on)return;if(Math.abs(e.clientX-drag.lx)>2||Math.abs(e.clientY-drag.ly)>2)dragged=true;
+  drag.vy=(e.clientX-drag.lx)*.008;drag.vx=(e.clientY-drag.ly)*.008;
+  CAM.tRy+=drag.vy;CAM.tRx+=drag.vx;CAM.tRx=Math.max(-Math.PI*.44,Math.min(Math.PI*.44,CAM.tRx));
+  drag.lx=e.clientX;drag.ly=e.clientY;});
+cv.addEventListener('wheel',e=>{e.preventDefault();CAM.tZ*=e.deltaY<0?.89:1.12;CAM.tZ=Math.max(1.1,Math.min(5,CAM.tZ));},{passive:false});
+cv.addEventListener('touchstart',e=>{drag.on=true;drag.lx=e.touches[0].clientX;drag.ly=e.touches[0].clientY;drag.vx=drag.vy=0;dragged=false;},{passive:true});
+window.addEventListener('touchend',()=>{drag.on=false;},{passive:true});
+window.addEventListener('touchmove',e=>{if(!drag.on)return;dragged=true;
+  drag.vy=(e.touches[0].clientX-drag.lx)*.008;drag.vx=(e.touches[0].clientY-drag.ly)*.008;
+  CAM.tRy+=drag.vy;CAM.tRx+=drag.vx;CAM.tRx=Math.max(-Math.PI*.44,Math.min(Math.PI*.44,CAM.tRx));
+  drag.lx=e.touches[0].clientX;drag.ly=e.touches[0].clientY;},{passive:true});
+
+/* ── Click → country detection ── */
+const ray=new THREE.Raycaster(),mv=new THREE.Vector2();
+function clickLL(ex,ey){
+  mv.x=(ex/W())*2-1;mv.y=-(ey/H())*2+1;ray.setFromCamera(mv,cam);
+  const hits=ray.intersectObject(earthMesh);if(!hits.length)return null;
+  const loc=hits[0].point.clone().applyEuler(new THREE.Euler(-earthMesh.rotation.x,-earthMesh.rotation.y,-earthMesh.rotation.z,'ZYX'));
+  const lat=90-Math.acos(Math.max(-1,Math.min(1,loc.y/RL)))*(180/Math.PI);
+  let lng=Math.atan2(loc.z,-loc.x)*(180/Math.PI)-180;
+  if(lng<-180)lng+=360;if(lng>180)lng-=360;return{lat,lng};}
+
+function nearestC(lat,lng){
+  let b=null,bd=9999;
+  CDB.forEach(c=>{
+    c.cities.forEach(hs=>{const d=Math.sqrt((hs.lat-lat)**2+(hs.lng-lng)**2);if(d<bd){bd=d;b=c;}});});
+  if(bd<18)return b;
+  let b2=null,b2d=9999;
+  CDB.forEach(c=>{const d=Math.sqrt((c.lat-lat)**2+(c.lng-lng)**2);if(d<b2d){b2d=d;b2=c;}});
+  return b2d<42?b2:null;}
+
+const ripEl=document.getElementById('rip');
+function doRipple(x,y){ripEl.style.left=x+'px';ripEl.style.top=y+'px';ripEl.style.display='block';
+  ripEl.classList.remove('go');void ripEl.offsetWidth;ripEl.classList.add('go');
+  setTimeout(()=>{ripEl.style.display='none';ripEl.classList.remove('go');},550);}
+
+cv.addEventListener('click',e=>{if(dragged)return;
+  const ll=clickLL(e.clientX,e.clientY);if(!ll)return;
+  doRipple(e.clientX,e.clientY);
+  if(MODE==='country'){exitWorld();return;}
+  const c=nearestC(ll.lat,ll.lng);if(c)enterCountry(c);});
+
+function enterCountry(c){
+  ACTIVE=c;MODE='country';flyTo(c);seedCountry(c);
+  document.getElementById('bc').style.display='flex';
+  document.getElementById('bcn').textContent=c.f+' '+c.n;
+  document.getElementById('ht').textContent='Risk · '+c.n;
+  document.getElementById('hint').innerHTML='<b>Click globe</b> to return &nbsp;·&nbsp; <b>Open Map</b> for street + 3D city view';
+  document.getElementById('btnmap').style.display='inline-block';
+  document.getElementById('cc').style.display='block';
+  document.getElementById('cc-title').textContent=c.f+' '+c.n;
+  updateCC();}
+
+function exitWorld(){
+  ACTIVE=null;MODE='world';flyWorld();seedWorld();
+  document.getElementById('bc').style.display='none';
+  document.getElementById('btnmap').style.display='none';
+  document.getElementById('cc').style.display='none';
+  document.getElementById('ht').textContent='Real-Time Accident Risk · Global View';
+  document.getElementById('hint').innerHTML='<b>Drag</b> to rotate &nbsp;·&nbsp; <b>Scroll</b> to zoom &nbsp;·&nbsp; <b>Click a country</b> to drill in';}
+
+document.getElementById('btnback').addEventListener('click',exitWorld);
+document.getElementById('btnmap').addEventListener('click',()=>{
+  if(!ACTIVE)return;
+  const data={name:ACTIVE.n,flag:ACTIVE.f,lat:ACTIVE.lat,lng:ACTIVE.lng,
+    mapZ:ACTIVE.z||5,risk:ACTIVE.r,cities:ACTIVE.cities};
+  try{sessionStorage.setItem('mapCountry',JSON.stringify(data));}catch(e){}
+  window.open('map_view.html','_blank');});
+
+function updateCC(){
+  const h=DOTS.filter(d=>d.risk==='HIGH').length,m=DOTS.filter(d=>d.risk==='MEDIUM').length,l=DOTS.filter(d=>d.risk==='LOW').length,t=DOTS.length||1;
+  document.getElementById('cc-h').textContent=h;document.getElementById('cc-m').textContent=m;
+  document.getElementById('cc-l').textContent=l;document.getElementById('cc-t').textContent=DOTS.length;
+  document.getElementById('cc-sh').style.width=(h/t*100)+'%';
+  document.getElementById('cc-sm').style.width=(m/t*100)+'%';
+  document.getElementById('cc-sl').style.width=(l/t*100)+'%';}
+
+/* ── Hover tooltip ── */
+const ray2=new THREE.Raycaster(),mv2=new THREE.Vector2(-9,-9);
+const ttEl=document.getElementById('tt');let hovDot=null;
+window.addEventListener('mousemove',e=>{mv2.x=(e.clientX/W())*2-1;mv2.y=-(e.clientY/H())*2+1;
+  ttEl.style.left=(e.clientX+14)+'px';ttEl.style.top=(e.clientY-4)+'px';});
+window.addEventListener('mouseleave',()=>{ttEl.style.display='none';hovDot=null;});
+function checkHover(){
+  ray2.setFromCamera(mv2,cam);let best=null,bd=Infinity;
+  DOTS.forEach(d=>{const h=ray2.intersectObject(d.sph);if(h.length&&h[0].distance<bd){bd=h[0].distance;best=d;}});
+  if(best!==hovDot){hovDot=best;
+    if(hovDot){const col=RCOL[hovDot.risk];
+      document.getElementById('tt-r').textContent=RNAME[hovDot.risk];
+      document.getElementById('tt-r').style.color=col;
+      document.getElementById('tt-c').textContent=(hovDot.city?hovDot.city+' · ':'')+hovDot.lat.toFixed(2)+'°, '+hovDot.lng.toFixed(2)+'°';
+      document.getElementById('tt-x').innerHTML=`🌡 ${hovDot.temp}°F &nbsp; 💨 ${hovDot.wind}mph &nbsp; 👁 ${hovDot.vis}mi &nbsp; ⚠️ ${hovDot.score}/10`;
+      ttEl.style.display='block';}else ttEl.style.display='none';}}
+
+/* ── HUD ── */
+function updateHUD(){
+  const h=DOTS.filter(d=>d.risk==='HIGH').length,m=DOTS.filter(d=>d.risk==='MEDIUM').length,l=DOTS.filter(d=>d.risk==='LOW').length;
+  document.getElementById('sa').textContent=DOTS.length;document.getElementById('sh').textContent=h;
+  document.getElementById('sm').textContent=m;document.getElementById('sl').textContent=l;
+  document.getElementById('lch').textContent=h;document.getElementById('lcm').textContent=m;document.getElementById('lcl').textContent=l;
+  if(MODE==='country')updateCC();}
+
+function refreshTicker(){
+  const items=DOTS.filter(d=>d.risk!=='LOW').slice(0,24).map(d=>{const col=RCOL[d.risk];
+    return`<span class="ti"><span class="tdo" style="background:${col};box-shadow:0 0 4px ${col}"></span>${d.risk} — ${d.city||'Zone'} ${d.lat.toFixed(1)}°,${d.lng.toFixed(1)}° 🌡${d.temp}°F 💨${d.wind}mph ⚠️${d.score}/10</span>`;}).join('');
+  document.getElementById('tin').innerHTML=items||'🟢 All clear — monitoring globally';}
+setInterval(refreshTicker,4000);refreshTicker();
+
+/* ── Render loop ── */
+let lastT=performance.now();
+function animate(now){
+  requestAnimationFrame(animate);const dt=Math.min(now-lastT,50);lastT=now;
+  if(!drag.on){drag.vx*=.87;drag.vy*=.87;
+    if(MODE==='world')CAM.tRy+=.0014+drag.vy;CAM.tRx+=drag.vx;
+    CAM.tRx=Math.max(-Math.PI*.44,Math.min(Math.PI*.44,CAM.tRx));}
+  eR.x+=(CAM.tRx-eR.x)*CAM.ls;eR.y+=(CAM.tRy-eR.y)*CAM.ls;CAM.cZ+=(CAM.tZ-CAM.cZ)*CAM.ls;
+  earthMesh.rotation.x=eR.x;earthMesh.rotation.y=eR.y;
+  atm1.rotation.copy(earthMesh.rotation);atm2.rotation.copy(earthMesh.rotation);
+  cam.position.z=CAM.cZ;cam.updateProjectionMatrix();
+  DOTS=DOTS.filter(d=>{const a=d.update(now,dt);if(!a){d.dispose();return false;}return true;});
+  if(MODE==='world'&&DOTS.length<72&&Math.random()<.04){
+    const p=WPTS[Math.floor(Math.random()*WPTS.length)];const r=Math.random();
+    DOTS.push(new Dot(p.lat+(Math.random()-.5)*4,p.lng+(Math.random()-.5)*4,r<.3?'HIGH':r<.62?'MEDIUM':'LOW',p.n));}
+  if(MODE==='country'&&ACTIVE&&DOTS.length<122&&Math.random()<.05){
+    const hs=ACTIVE.cities[Math.floor(Math.random()*ACTIVE.cities.length)];
+    DOTS.push(new Dot(hs.lat+(Math.random()-.5)*.48,hs.lng+(Math.random()-.5)*.48,riskFor(ACTIVE.r),hs.n));}
+  checkHover();updateHUD();projLabels();renderer.render(scene,cam);}
+
+window.addEventListener('load',()=>{setTimeout(()=>{
+  const l=document.getElementById('ld');l.classList.add('out');setTimeout(()=>{if(l.parentNode)l.parentNode.removeChild(l);},700);},900);});
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
